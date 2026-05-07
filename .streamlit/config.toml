@@ -1,0 +1,26 @@
+# Streamlit-tema for FCM-demoen.
+# Skifter Streamlit's default røde signatur (#FF4B4B) ud med en industriel
+# slate-palette så appen ikke skriger "Streamlit-app". Source Sans → systemets
+# sans-serif giver en mindre genkendelig typografi.
+
+[theme]
+base = "light"
+
+# Primær accent — bruges til knapper, slider-track, fokus-borders.
+primaryColor = "#1F2937"
+
+# Hovedbaggrund og tekstfarver
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8FAFC"
+textColor = "#0F172A"
+
+# Brug systemets sans-serif (San Francisco på macOS) i stedet for Streamlit's
+# Source Sans Pro — mindre genkendelig fingerprint
+font = "sans serif"
+
+[server]
+# Skip Streamlit's velkomstdialog ved første kørsel
+headless = true
+
+[browser]
+gatherUsageStats = false
