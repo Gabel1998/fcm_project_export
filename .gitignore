@@ -7,8 +7,10 @@ data/videometer_processed/
 # YOLO-genererede filer
 runs/
 *.pt
-!yolo11n.pt          # tillad pre-trained modellen
-!models/**/best.pt   # tillad versionerede trænede modeller
+# Tillad pre-trained YOLOv11n
+!yolo11n.pt
+# Tillad versionerede trænede modeller under models/
+!models/**/best.pt
 
 # Python
 __pycache__/

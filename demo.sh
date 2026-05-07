@@ -6,8 +6,8 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [[ ! -x "$DIR/.venv/bin/streamlit" ]]; then
-    echo "❌ Streamlit ikke fundet i $DIR/.venv/bin/."
-    echo "   Kør først: $DIR/.venv/bin/pip install -r $DIR/requirements.txt"
+    echo " Streamlit ikke fundet i $DIR/.venv/bin/."
+    echo " Kør først: $DIR/.venv/bin/pip install -r $DIR/requirements.txt"
     exit 1
 fi
 
