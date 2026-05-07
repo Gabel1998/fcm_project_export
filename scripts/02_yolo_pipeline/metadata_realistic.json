@@ -1,0 +1,14 @@
+{
+  "mm_per_pixel": 0.05,
+  "image_size": 256,
+  "num_images": 300,
+  "data_type": "synthetic_videometer_compatible",
+  "reflectance_units": true,
+  "wavelength_bands": 1,
+  "seed_count_stats": {
+    "total": 17580,
+    "mean": 58.6,
+    "min": 40,
+    "max": 80
+  }
+}
