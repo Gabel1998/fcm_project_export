@@ -26,7 +26,6 @@ from info_texts import TOOLTIPS
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="FCM Landmark Detection",
-    page_icon="🌾",
     layout="wide",
 )
 
@@ -115,7 +114,7 @@ model, model_path = load_model()
 # Sidebar — parametre
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Generér nyt billede")
+    st.header("Parametre")
 
     num_seeds = st.slider(
         "Antal frø",
@@ -148,7 +147,7 @@ with st.sidebar:
     )
 
     regenerate = st.button(
-        "⟳ Generér nyt tilfældigt billede", width="stretch"
+        "Generér nyt billede", width="stretch"
     )
 
     st.divider()
@@ -203,13 +202,13 @@ with st.spinner("Genererer billede og kører prediction…"):
 col_gt, col_pred = st.columns(2)
 
 with col_gt:
-    st.markdown("### 🟢 Ground Truth", help=TOOLTIPS["ground_truth"])
+    st.markdown("### Ground truth", help=TOOLTIPS["ground_truth"])
     img_gt = render_with_overlay(img_uint8, centers=gt_centers)
     st.image(img_gt, width="stretch")
     st.caption(f"{len(gt_centers)} frø placeret af generatoren")
 
 with col_pred:
-    st.markdown("### 🔴 YOLOv11n Prediction", help=TOOLTIPS["prediction"])
+    st.markdown("### Model output", help=TOOLTIPS["prediction"])
     img_pred = render_with_overlay(
         img_uint8, centers=pred_centers, boxes=pred_boxes,
     )
@@ -256,11 +255,15 @@ m4.metric(
 
 
 # ---------------------------------------------------------------------------
-# Forklarings-blok
+# Forklarings-blok (custom — ikke Streamlit's default alert-look)
 # ---------------------------------------------------------------------------
-st.info(
-    "**Hvad ser du?** Modellen detekterer rektangulære regioner "
-    "(bounding boxes) omkring hvert frø. Vi tager centrum af hver box som "
-    "det predicted landmark. Median-afstanden i mm fortæller hvor præcist "
-    "modellen rammer — typisk ~0.5 pixel = sub-pixel præcision."
+st.markdown(
+    '<div class="callout">'
+    '<span class="callout-label">Note</span>'
+    'Modellen detekterer rektangulære regioner (bounding boxes) omkring hvert '
+    'frø. Vi tager centrum af hver box som det predicted landmark. '
+    'Median-afstanden i mm fortæller hvor præcist modellen rammer — typisk '
+    '~0.5 pixel, dvs. sub-pixel præcision.'
+    '</div>',
+    unsafe_allow_html=True,
 )
