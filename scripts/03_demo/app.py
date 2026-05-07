@@ -46,11 +46,22 @@ MATCH_TOLERANCE_PX = 5
 # ---------------------------------------------------------------------------
 @st.cache_resource
 def load_model():
-    """Find og indlæs den nyeste best.pt fra runs/-mappen."""
+    """Find og indlæs den aktive model.
+
+    Foretrækker models/active/best.pt (versioneret setup, skift via
+    ./switch_model.sh). Falder tilbage til runs/-glob hvis active ikke
+    findes — så pipelinen virker også før versioneringen er sat op.
+    """
     from ultralytics import YOLO
 
-    # Søg fra projekt-roden (to niveauer op fra denne fil)
     project_root = DEMO_DIR.parent.parent
+
+    # Primær: versioneret active-model
+    active_path = project_root / "models" / "active" / "best.pt"
+    if active_path.exists():
+        return YOLO(str(active_path)), str(active_path)
+
+    # Fallback: nyeste best.pt under runs/ (legacy-sti)
     pattern = str(
         project_root / "scripts" / "02_yolo_pipeline" / "runs" / "**" / "best.pt"
     )
@@ -60,8 +71,9 @@ def load_model():
 
     if not matches:
         st.error(
-            "❌ Ingen trænet model fundet. "
-            "Kør først `scripts/02_yolo_pipeline/03_train_yolo.py`."
+            "Ingen trænet model fundet. "
+            "Forventet sti: models/active/best.pt — kør `./switch_model.sh <version>` "
+            "eller træn en model via `scripts/02_yolo_pipeline/03_train_yolo.py`."
         )
         st.stop()
 
@@ -151,9 +163,13 @@ with st.sidebar:
     )
 
     st.divider()
+    # Følg symlinks så vi får den faktiske versions-mappe (fx "v1_kalibreret"),
+    # ikke bare "active" som er symlink-navnet.
+    _resolved = Path(model_path).resolve()
+    _version = _resolved.parent.name if _resolved.parent.name != "active" else "ukendt"
     st.caption(
         f"**Model:** YOLOv11n  \n"
-        f"**Vægtfil:** `{Path(model_path).name}`  \n"
+        f"**Version:** `{_version}`  \n"
         f"**Skala:** 0.05 mm/pixel"
     )
 
