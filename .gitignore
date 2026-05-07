@@ -1,0 +1,43 @@
+# Videometer data - ALDRIG i Git pga. NDA
+data/videometer_raw/
+data/videometer_processed/
+*.hips
+*.HIPS
+
+# YOLO-genererede filer
+runs/
+*.pt
+!yolo11n.pt   # tillad pre-trained modellen
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Superpowers brainstorming-sessioner (ikke versions-relevante)
+.superpowers/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Datasæt-filer der genererer
+dataset/
+*.npy
+*.npz
+
+# Resultater - kan genereres på ny
+*.cache

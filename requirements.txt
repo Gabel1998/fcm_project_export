@@ -1,0 +1,19 @@
+# Python 3.11 anbefales (ikke 3.13)
+# Installer PyTorch separat med: pip install torch torchvision torchaudio
+
+ultralytics>=8.0.0     # YOLOv11
+pandas>=2.0.0          # læs Excel
+openpyxl>=3.1.0        # pandas Excel-engine
+pillow>=10.0.0         # billed-håndtering
+matplotlib>=3.7.0      # visualiseringer
+numpy>=1.24.0          # arrays
+scikit-image>=0.21.0   # peak detection (kun til FCN-arkiv)
+scipy>=1.11.0          # gaussian filter (kun til FCN-arkiv)
+
+# Demo-app
+streamlit>=1.30.0      # web UI til demo
+pytest>=8.0.0          # unit-tests for synthetic.py og landmarks.py
+
+# Til ekstra (ONNX-eksport, Java Spring deployment):
+# onnx>=1.15.0
+# onnxruntime>=1.16.0
