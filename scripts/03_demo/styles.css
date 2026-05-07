@@ -1,0 +1,53 @@
+/* Fjern Streamlit-branding for cleaner demo-look */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header [data-testid="stToolbar"] {visibility: hidden;}
+
+/* Smallere padding i toppen — mere indhold på skærmen */
+section[data-testid="stMain"] > div {
+    padding-top: 1.5rem;
+}
+
+/* Større, federe titel */
+h1 {
+    font-weight: 700 !important;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.25rem !important;
+}
+
+/* Caption under titel — mere pro-look */
+.stCaption {
+    color: #888 !important;
+    font-size: 0.9rem !important;
+}
+
+/* Sidebar — mørkere baggrund og lidt mere padding */
+section[data-testid="stSidebar"] {
+    padding-top: 1rem;
+}
+
+/* Metric-værdier større og fede */
+[data-testid="stMetricValue"] {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 0.75rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888 !important;
+}
+
+/* Billed-overskrifter (Ground Truth / Prediction) — mere markante */
+.stMarkdown h3 {
+    font-size: 1.1rem !important;
+    margin-bottom: 0.5rem !important;
+    margin-top: 0.5rem !important;
+}
+
+/* Info-boks — mere subtil */
+[data-testid="stAlert"] {
+    border-left-width: 3px;
+    background-color: rgba(74, 158, 255, 0.08);
+}
