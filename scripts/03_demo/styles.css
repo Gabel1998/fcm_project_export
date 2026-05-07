@@ -1,53 +1,129 @@
-/* Fjern Streamlit-branding for cleaner demo-look */
+/* ============================================================
+   FCM Landmark Detection — custom CSS
+   Mål: stramme Streamlit's default-look til noget mindre
+   genkendeligt og mere industrielt/clinical.
+   ============================================================ */
+
+/* --- Skjul Streamlit-branding --------------------------------- */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header [data-testid="stToolbar"] {visibility: hidden;}
 
-/* Smallere padding i toppen — mere indhold på skærmen */
+/* --- Top-padding --------------------------------------------- */
 section[data-testid="stMain"] > div {
-    padding-top: 1.5rem;
+    padding-top: 2rem;
 }
 
-/* Større, federe titel */
+/* --- Typografi ------------------------------------------------ */
+/* Bruger systemets sans-serif via theme; her tunes vægte og spacing */
 h1 {
-    font-weight: 700 !important;
-    letter-spacing: -0.02em;
-    margin-bottom: 0.25rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.025em;
+    margin-bottom: 0.1rem !important;
+    font-size: 1.75rem !important;
 }
 
-/* Caption under titel — mere pro-look */
-.stCaption {
-    color: #888 !important;
-    font-size: 0.9rem !important;
+.stCaption,
+[data-testid="stCaptionContainer"] {
+    color: #64748B !important;
+    font-size: 0.85rem !important;
+    letter-spacing: 0.01em;
 }
 
-/* Sidebar — mørkere baggrund og lidt mere padding */
+/* Sektion-overskrifter (Ground truth / Model output) */
+.stMarkdown h3 {
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #334155 !important;
+    margin: 0.5rem 0 0.5rem 0 !important;
+}
+
+/* --- Sidebar -------------------------------------------------- */
 section[data-testid="stSidebar"] {
     padding-top: 1rem;
+    border-right: 1px solid #E2E8F0;
 }
 
-/* Metric-værdier større og fede */
+section[data-testid="stSidebar"] h2 {
+    font-size: 0.8rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #475569 !important;
+    font-weight: 600 !important;
+    margin-bottom: 1rem !important;
+}
+
+/* --- Knapper -------------------------------------------------- */
+/* Stram den store primær-knap så den ikke ser så Streamlit-default ud */
+[data-testid="stBaseButton-secondary"],
+.stButton > button {
+    border-radius: 4px !important;
+    border: 1px solid #1F2937 !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.01em;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+}
+
+/* --- Metric-kort ---------------------------------------------- */
+[data-testid="stMetric"] {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+}
+
 [data-testid="stMetricValue"] {
-    font-size: 1.75rem !important;
-    font-weight: 700 !important;
+    font-size: 1.6rem !important;
+    font-weight: 600 !important;
+    color: #0F172A !important;
+    letter-spacing: -0.02em;
 }
 
 [data-testid="stMetricLabel"] {
-    font-size: 0.75rem !important;
+    font-size: 0.7rem !important;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #888 !important;
+    letter-spacing: 0.08em;
+    color: #64748B !important;
+    font-weight: 500 !important;
 }
 
-/* Billed-overskrifter (Ground Truth / Prediction) — mere markante */
-.stMarkdown h3 {
-    font-size: 1.1rem !important;
-    margin-bottom: 0.5rem !important;
-    margin-top: 0.5rem !important;
+[data-testid="stMetricDelta"] {
+    font-size: 0.75rem !important;
+    color: #94A3B8 !important;
 }
 
-/* Info-boks — mere subtil */
-[data-testid="stAlert"] {
-    border-left-width: 3px;
-    background-color: rgba(74, 158, 255, 0.08);
+/* --- Custom callout (erstatter st.info) ----------------------- */
+.callout {
+    margin: 1rem 0;
+    padding: 0.85rem 1rem 0.85rem 1rem;
+    background: #F8FAFC;
+    border-left: 2px solid #334155;
+    font-size: 0.9rem;
+    color: #334155;
+    line-height: 1.55;
+}
+
+.callout-label {
+    display: inline-block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64748B;
+    font-weight: 600;
+    margin-right: 0.6rem;
+}
+
+/* --- Dividers ------------------------------------------------- */
+hr {
+    border-color: #E2E8F0 !important;
+    margin: 1.25rem 0 !important;
+}
+
+/* --- Billed-rammer -------------------------------------------- */
+[data-testid="stImage"] img {
+    border: 1px solid #E2E8F0;
+    border-radius: 2px;
 }
