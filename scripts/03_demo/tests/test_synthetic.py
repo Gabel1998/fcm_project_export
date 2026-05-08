@@ -21,7 +21,7 @@ def test_default_parametre_giver_korrekt_shape():
     assert img.shape == (256, 256), f"forventet (256,256), fik {img.shape}"
     assert img.dtype == np.uint8, f"forventet uint8, fik {img.dtype}"
     assert isinstance(centers, list)
-    assert all(len(c) == 2 for c in centers), "hvert center skal være (x, y)"
+    assert all(len(center) == 2 for center in centers), "hvert center skal være (x, y)"
     assert mm_per_pixel == 0.05
 
 
@@ -38,16 +38,16 @@ def test_lille_billede_virker():
 
 def test_random_seed_er_deterministisk():
     """Samme random_seed → samme output."""
-    img1, c1, _ = synthetic.generate_image(
+    image_first, centers_first, _ = synthetic.generate_image(
         num_seeds=30, img_size=256, noise_preset="kalibreret",
         seed_size_preset="normal", random_seed=123,
     )
-    img2, c2, _ = synthetic.generate_image(
+    image_second, centers_second, _ = synthetic.generate_image(
         num_seeds=30, img_size=256, noise_preset="kalibreret",
         seed_size_preset="normal", random_seed=123,
     )
-    assert np.array_equal(img1, img2)
-    assert c1 == c2
+    assert np.array_equal(image_first, image_second)
+    assert centers_first == centers_second
 
 
 def test_centre_er_inden_for_billedet():
