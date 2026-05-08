@@ -41,8 +41,4 @@ v3 er **22× bedre** på worst-case og **2× bedre** på svær støj. Stadig und
 
 ## Demo-strategi
 
-Skift frem og tilbage mellem v1 og v3 for at vise udviklingen i robusthed:
-```bash
-./switch_model.sh v1_kalibreret    # vis baseline-perfektion
-./switch_model.sh v3_augmented     # vis robusthed
-```
+Skift frem og tilbage mellem v1 og v3 for at vise udviklingen i robusthed, især på svære cases (støj, lille billede, worst-case). V3's forbedringer er tydeligst i edge cases, mens v1 og v3 er mere ens på nemme cases.

@@ -36,5 +36,4 @@ testes på mixed conditions, ikke kun kalibreret.
 ## Plads i versions-historikken
 
 V2 er **mellemtrinnet** mellem v1 (kun kalibreret) og v3 (mixed + plade-
-imperfektioner). Hvis du vil vise progressionen i demoen, switch i
-rækkefølge: v1 → v2 → v3.
+imperfektioner). 
