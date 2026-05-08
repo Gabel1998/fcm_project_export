@@ -26,6 +26,10 @@ env/
 # Superpowers brainstorming-sessioner (ikke versions-relevante)
 .superpowers/
 
+# AI-assistent instruktioner og lokal state (lokal-only)
+.claude/
+CLAUDE.md
+
 # IDE
 .idea/
 .vscode/
