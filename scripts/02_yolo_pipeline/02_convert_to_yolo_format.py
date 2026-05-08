@@ -107,9 +107,9 @@ print(f"Validering: {len(val_indices)} billeder")
 # =====================================================================
 # HJÆLPEFUNKTION: konvertér frø-center til YOLO bbox-format
 # =====================================================================
-def center_to_yolo_bbox(cx, cy, bbox_size, img_size):
+def center_to_yolo_bbox(center_x, center_y, bbox_size, img_size):
     """
-    Konverterer (cx, cy) center-koordinat til YOLO-format bbox.
+    Konverterer (center_x, center_y) center-koordinat til YOLO-format bbox.
 
     YOLO format: class x_center y_center width height
                  (alle normaliseret til 0-1)
@@ -118,8 +118,8 @@ def center_to_yolo_bbox(cx, cy, bbox_size, img_size):
     Centrum af bboxen = vores frø-centrum direkte.
     """
     # Normaliser til [0, 1]
-    x_norm = cx / img_size
-    y_norm = cy / img_size
+    x_norm = center_x / img_size
+    y_norm = center_y / img_size
     w_norm = bbox_size / img_size
     h_norm = bbox_size / img_size
 
@@ -140,26 +140,26 @@ def save_split(indices, split_name):
     print(f"\nGemmer {split_name}-sæt...")
     total_seeds = 0
 
-    for idx in indices:
+    for image_index in indices:
         # Hent billede og fjern kanal-dimension (bare for PIL)
-        img = X[idx, :, :, 0]
+        img = X[image_index, :, :, 0]
 
         # Konvertér float [0,1] til uint8 [0,255] så det kan gemmes som PNG
         img_uint8 = (img * 255).astype(np.uint8)
 
         # Gem billedet som PNG
-        img_filename = f"{DATASET_DIR}/images/{split_name}/img_{idx:04d}.png"
+        img_filename = f"{DATASET_DIR}/images/{split_name}/img_{image_index:04d}.png"
         Image.fromarray(img_uint8).save(img_filename)
 
         # Hent fro-centre for dette billede
-        centers = centers_data[f"img_{idx:04d}"]
+        centers = centers_data[f"img_{image_index:04d}"]
 
         # Lav label-fil i YOLO-format
         # Én linje pr. frø: "class_id x_center y_center width height"
-        label_filename = f"{DATASET_DIR}/labels/{split_name}/img_{idx:04d}.txt"
+        label_filename = f"{DATASET_DIR}/labels/{split_name}/img_{image_index:04d}.txt"
         with open(label_filename, "w") as f:
-            for (cx, cy) in centers:
-                x, y, w, h = center_to_yolo_bbox(cx, cy, BBOX_SIZE_PIXELS, IMG_SIZE)
+            for (center_x, center_y) in centers:
+                x, y, w, h = center_to_yolo_bbox(center_x, center_y, BBOX_SIZE_PIXELS, IMG_SIZE)
                 # class_id 0 = "seed" (vi har kun én klasse)
                 f.write(f"0 {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n")
 
@@ -213,18 +213,18 @@ fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 # Vælg 3 tilfældige train-billeder
 sample_indices = np.random.choice(train_indices, size=3, replace=False)
 
-for col, idx in enumerate(sample_indices):
-    img = X[idx, :, :, 0]
-    centers = centers_data[f"img_{idx:04d}"]
+for col, image_index in enumerate(sample_indices):
+    img = X[image_index, :, :, 0]
+    centers = centers_data[f"img_{image_index:04d}"]
 
     # Vis billedet
     axes[col].imshow(img, cmap='gray', vmin=0, vmax=1)
 
     # Tegn bbox rundt om hvert frø
-    for (cx, cy) in centers:
+    for (center_x, center_y) in centers:
         # Beregn bbox-corners (top-left for matplotlib Rectangle)
-        x = cx - BBOX_SIZE_PIXELS / 2
-        y = cy - BBOX_SIZE_PIXELS / 2
+        x = center_x - BBOX_SIZE_PIXELS / 2
+        y = center_y - BBOX_SIZE_PIXELS / 2
 
         rect = patches.Rectangle(
             (x, y), BBOX_SIZE_PIXELS, BBOX_SIZE_PIXELS,
@@ -233,9 +233,9 @@ for col, idx in enumerate(sample_indices):
         axes[col].add_patch(rect)
 
         # Lille prik i centrum
-        axes[col].plot(cx, cy, 'r.', markersize=3)
+        axes[col].plot(center_x, center_y, 'r.', markersize=3)
 
-    axes[col].set_title(f"Billede {idx}: {len(centers)} frø med bboxes")
+    axes[col].set_title(f"Billede {image_index}: {len(centers)} frø med bboxes")
     axes[col].axis('off')
 
 plt.suptitle(f"YOLO-format datasæt - bboxes på {BBOX_SIZE_PIXELS}x{BBOX_SIZE_PIXELS} pixels rundt om hvert fro",

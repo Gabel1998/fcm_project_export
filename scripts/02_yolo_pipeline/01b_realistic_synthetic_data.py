@@ -67,70 +67,70 @@ np.random.seed(RANDOM_SEED)
 # =====================================================================
 # FUNKTION 1: Tjek om to ellipser overlapper
 # =====================================================================
-def ellipses_overlap(e1, e2, gap):
+def ellipses_overlap(ellipse_a, ellipse_b, gap):
     """
     Konservativ test: tjekker om to ellipser kommer for tæt på hinanden.
 
-    e1, e2: (cx, cy, length, width, angle) - ellipse-parametre
+    ellipse_a, ellipse_b: (center_x, center_y, length, width, angle) - ellipse-parametre
     gap: minimum tilladt afstand mellem ellipse-kanter
 
     Vi bruger en simpel "konservativ" approksimation:
-    afstand mellem centre < (storste radius af e1 + storste radius af e2 + gap)
+    afstand mellem centre < (største radius af a + største radius af b + gap)
     """
-    cx1, cy1, L1, W1, _ = e1
-    cx2, cy2, L2, W2, _ = e2
+    center_x_a, center_y_a, length_a, _, _ = ellipse_a
+    center_x_b, center_y_b, length_b, _, _ = ellipse_b
 
     # Den maksimale "radius" af hver ellipse er den halve længde
-    r1 = L1 / 2.0
-    r2 = L2 / 2.0
+    radius_a = length_a / 2.0
+    radius_b = length_b / 2.0
 
     # Euclidean afstand mellem centre
-    dx = cx1 - cx2
-    dy = cy1 - cy2
-    distance = np.sqrt(dx * dx + dy * dy)
+    delta_x = center_x_a - center_x_b
+    delta_y = center_y_a - center_y_b
+    distance = np.sqrt(delta_x * delta_x + delta_y * delta_y)
 
     # Hvis afstanden er mindre end summen af radier + gap, er de for tætte
-    return distance < (r1 + r2 + gap)
+    return distance < (radius_a + radius_b + gap)
 
 
 # =====================================================================
 # FUNKTION 2: Tegn én ellipse (frø) ind i et billede
 # =====================================================================
-def draw_ellipse(image, cx, cy, length, width, angle_deg, color):
+def draw_ellipse(image, center_x, center_y, length, width, angle_deg, color):
     """
     Tegner en udfyldt ellipse i billedet ved at modificere pixels direkte.
 
     Hvordan det virker (matematisk):
     1. For hver pixel (x, y) i billedet:
-    2. Translater så centrum er i origo: (x - cx, y - cy)
+    2. Translater så centrum er i origo: (x - center_x, y - center_y)
     3. Rotér med -angle så ellipse-akser er aligned med x og y
     4. Tjek standard ellipse-ligning: (x'/a)^2 + (y'/b)^2 < 1
        - a = length / 2 (halv-akse i x-retning efter rotation)
        - b = width / 2  (halv-akse i y-retning efter rotation)
     """
-    a = length / 2.0
-    b = width / 2.0
+    semi_axis_along_length = length / 2.0
+    semi_axis_along_width = width / 2.0
     angle_rad = np.deg2rad(angle_deg)
-    cos_a = np.cos(angle_rad)
-    sin_a = np.sin(angle_rad)
+    cos_angle = np.cos(angle_rad)
+    sin_angle = np.sin(angle_rad)
 
     # Lav grid af alle pixel-koordinater
-    H, W = image.shape
-    yy, xx = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
+    image_height, image_width = image.shape
+    y_grid, x_grid = np.meshgrid(np.arange(image_height), np.arange(image_width), indexing='ij')
 
     # Translater til ellipse-centrum
-    x_shifted = xx - cx
-    y_shifted = yy - cy
+    x_shifted = x_grid - center_x
+    y_shifted = y_grid - center_y
 
     # Rotér -angle (så ellipsen "vendes om" til standard orientering)
-    x_rotated = cos_a * x_shifted + sin_a * y_shifted
-    y_rotated = -sin_a * x_shifted + cos_a * y_shifted
+    x_rotated = cos_angle * x_shifted + sin_angle * y_shifted
+    y_rotated = -sin_angle * x_shifted + cos_angle * y_shifted
 
     # Standard ellipse-formel: (x/a)^2 + (y/b)^2 < 1 betyder "inde i ellipsen"
-    inside = (x_rotated / a) ** 2 + (y_rotated / b) ** 2 < 1.0
+    inside_ellipse = (x_rotated / semi_axis_along_length) ** 2 + (y_rotated / semi_axis_along_width) ** 2 < 1.0
 
     # Sæt farven, men kun inden for billedets grænser
-    image[inside] = color
+    image[inside_ellipse] = color
 
 
 # =====================================================================
@@ -152,39 +152,39 @@ def generate_realistic_image(img_size):
     target_seeds = np.random.randint(SEEDS_PER_IMAGE_MIN, SEEDS_PER_IMAGE_MAX + 1)
 
     placed_ellipses = []  # liste af succesfuldt placerede ellipse-parametre
-    centers = []          # bare (cx, cy) til output
+    centers = []          # bare (center_x, center_y) til output
 
     # Margin så frø ikke går ud over kanten
     margin = SEED_LENGTH_MAX // 2 + 2
 
     # Forsøg at placere hvert frø med rejection sampling
-    for seed_idx in range(target_seeds):
-        # Vælg tilfældige fro-egenskaber
+    for seed_index in range(target_seeds):
+        # Vælg tilfældige frø-egenskaber
         length = np.random.randint(SEED_LENGTH_MIN, SEED_LENGTH_MAX + 1)
         width = np.random.randint(SEED_WIDTH_MIN, SEED_WIDTH_MAX + 1)
 
         # Forsøg at finde en ledig position
         placed = False
         for _ in range(MAX_PLACEMENT_ATTEMPTS):
-            cx = np.random.randint(margin, img_size - margin)
-            cy = np.random.randint(margin, img_size - margin)
+            center_x = np.random.randint(margin, img_size - margin)
+            center_y = np.random.randint(margin, img_size - margin)
             angle = np.random.uniform(0, 360)  # tilfældig orientering
 
-            new_ellipse = (cx, cy, length, width, angle)
+            new_ellipse = (center_x, center_y, length, width, angle)
 
             # Tjek om den overlapper med nogen tidligere placerede frø
-            collision = False
-            for existing in placed_ellipses:
-                if ellipses_overlap(new_ellipse, existing, PACKING_GAP_PIXELS):
-                    collision = True
+            has_collision = False
+            for existing_ellipse in placed_ellipses:
+                if ellipses_overlap(new_ellipse, existing_ellipse, PACKING_GAP_PIXELS):
+                    has_collision = True
                     break
 
-            if not collision:
+            if not has_collision:
                 # Plads fundet! Tegn frøet og gem positionen
                 color = np.random.uniform(SEED_REFLECTANCE_MIN, SEED_REFLECTANCE_MAX)
-                draw_ellipse(image, cx, cy, length, width, angle, color)
+                draw_ellipse(image, center_x, center_y, length, width, angle, color)
                 placed_ellipses.append(new_ellipse)
-                centers.append((cx, cy))
+                centers.append((center_x, center_y))
                 placed = True
                 break
 
