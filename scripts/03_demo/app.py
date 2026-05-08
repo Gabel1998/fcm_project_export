@@ -30,10 +30,10 @@ st.set_page_config(
 )
 
 # Load custom CSS for visuel polish (hvis filen findes)
-_css_path = DEMO_DIR / "styles.css"
-if _css_path.exists():
+css_file_path = DEMO_DIR / "styles.css"
+if css_file_path.exists():
     st.markdown(
-        f"<style>{_css_path.read_text()}</style>",
+        f"<style>{css_file_path.read_text()}</style>",
         unsafe_allow_html=True,
     )
 
@@ -65,11 +65,11 @@ def load_model():
     pattern = str(
         project_root / "scripts" / "02_yolo_pipeline" / "runs" / "**" / "best.pt"
     )
-    matches = sorted(
+    matching_files = sorted(
         glob.glob(pattern, recursive=True), key=os.path.getmtime, reverse=True
     )
 
-    if not matches:
+    if not matching_files:
         st.error(
             "Ingen trænet model fundet. "
             "Forventet sti: models/active/best.pt — kør `./switch_model.sh <version>` "
@@ -77,7 +77,7 @@ def load_model():
         )
         st.stop()
 
-    return YOLO(matches[0]), matches[0]
+    return YOLO(matching_files[0]), matching_files[0]
 
 
 # ---------------------------------------------------------------------------
@@ -94,20 +94,24 @@ def render_with_overlay(
         centers: liste af (x, y) — tegnes som små udfyldte cirkler
         boxes: liste af (x1, y1, x2, y2) — tegnes som rektangler
     """
-    rgb = np.stack([img_uint8] * 3, axis=-1)  # gråtone → RGB
-    img = Image.fromarray(rgb)
-    draw = ImageDraw.Draw(img)
+    rgb_array = np.stack([img_uint8] * 3, axis=-1)  # gråtone → RGB
+    overlay_image = Image.fromarray(rgb_array)
+    drawer = ImageDraw.Draw(overlay_image)
 
     if boxes is not None:
         for x1, y1, x2, y2 in boxes:
-            draw.rectangle([x1, y1, x2, y2], outline=box_color, width=1)
+            drawer.rectangle([x1, y1, x2, y2], outline=box_color, width=1)
 
     if centers is not None:
+        center_dot_radius = 2
         for x, y in centers:
-            r = 2
-            draw.ellipse([x - r, y - r, x + r, y + r], fill=center_color)
+            drawer.ellipse(
+                [x - center_dot_radius, y - center_dot_radius,
+                 x + center_dot_radius, y + center_dot_radius],
+                fill=center_color,
+            )
 
-    return img
+    return overlay_image
 
 
 # ---------------------------------------------------------------------------
@@ -165,11 +169,14 @@ with st.sidebar:
     st.divider()
     # Følg symlinks så vi får den faktiske versions-mappe (fx "v1_kalibreret"),
     # ikke bare "active" som er symlink-navnet.
-    _resolved = Path(model_path).resolve()
-    _version = _resolved.parent.name if _resolved.parent.name != "active" else "ukendt"
+    resolved_model_path = Path(model_path).resolve()
+    version_name = (
+        resolved_model_path.parent.name
+        if resolved_model_path.parent.name != "active" else "ukendt"
+    )
     st.caption(
         f"**Model:** YOLOv11n  \n"
-        f"**Version:** `{_version}`  \n"
+        f"**Version:** `{version_name}`  \n"
         f"**Skala:** 0.05 mm/pixel"
     )
 
@@ -185,7 +192,7 @@ if regenerate:
     st.session_state.rng_seed = int(np.random.randint(0, 1_000_000))
 
 with st.spinner("Genererer billede og kører prediction…"):
-    img_uint8, gt_centers, mm_per_pixel = synthetic.generate_image(
+    img_uint8, ground_truth_centers, mm_per_pixel = synthetic.generate_image(
         num_seeds=num_seeds,
         img_size=img_size,
         noise_preset=noise_preset,
@@ -197,71 +204,75 @@ with st.spinner("Genererer billede og kører prediction…"):
     # samme kanal tre gange — modellen har set præcis sådan input under træning
     # (PNG-filerne fra script 2 blev læst som 3-kanal af YOLO's loader).
     img_rgb = np.stack([img_uint8] * 3, axis=-1)
-    results = model.predict(
+    prediction_results = model.predict(
         img_rgb, conf=CONFIDENCE_THRESHOLD, verbose=False, device="mps",
     )
-    r = results[0]
+    first_result = prediction_results[0]
 
-    if r.boxes is not None and len(r.boxes) > 0:
-        xyxy = r.boxes.xyxy.cpu().numpy()
-        xywh = r.boxes.xywh.cpu().numpy()
-        pred_centers = [(float(c[0]), float(c[1])) for c in xywh[:, :2]]
-        pred_boxes = [tuple(b) for b in xyxy]
+    if first_result.boxes is not None and len(first_result.boxes) > 0:
+        boxes_xyxy = first_result.boxes.xyxy.cpu().numpy()
+        boxes_xywh = first_result.boxes.xywh.cpu().numpy()
+        predicted_centers = [
+            (float(center_xy[0]), float(center_xy[1]))
+            for center_xy in boxes_xywh[:, :2]
+        ]
+        predicted_boxes = [tuple(box_coords) for box_coords in boxes_xyxy]
     else:
-        pred_centers = []
-        pred_boxes = []
+        predicted_centers = []
+        predicted_boxes = []
 
 
 # ---------------------------------------------------------------------------
 # Side-by-side rendering
 # ---------------------------------------------------------------------------
-col_gt, col_pred = st.columns(2)
+column_truth, column_prediction = st.columns(2)
 
-with col_gt:
+with column_truth:
     st.markdown("### Ground truth", help=TOOLTIPS["ground_truth"])
-    img_gt = render_with_overlay(img_uint8, centers=gt_centers)
-    st.image(img_gt, width="stretch")
-    st.caption(f"{len(gt_centers)} frø placeret af generatoren")
+    image_with_truth = render_with_overlay(img_uint8, centers=ground_truth_centers)
+    st.image(image_with_truth, width="stretch")
+    st.caption(f"{len(ground_truth_centers)} frø placeret af generatoren")
 
-with col_pred:
+with column_prediction:
     st.markdown("### Model output", help=TOOLTIPS["prediction"])
-    img_pred = render_with_overlay(
-        img_uint8, centers=pred_centers, boxes=pred_boxes,
+    image_with_prediction = render_with_overlay(
+        img_uint8, centers=predicted_centers, boxes=predicted_boxes,
     )
-    st.image(img_pred, width="stretch")
+    st.image(image_with_prediction, width="stretch")
     inference_ms = (
-        float(r.speed.get("inference", 0.0)) if hasattr(r, "speed") else 0.0
+        float(first_result.speed.get("inference", 0.0))
+        if hasattr(first_result, "speed") else 0.0
     )
-    st.caption(f"{len(pred_centers)} detektioner · {inference_ms:.0f} ms inference")
+    st.caption(f"{len(predicted_centers)} detektioner · {inference_ms:.0f} ms inference")
 
 
 # ---------------------------------------------------------------------------
 # Metrics-bar
 # ---------------------------------------------------------------------------
-match = landmarks.match_landmarks(
-    gt_centers, pred_centers, tolerance_px=MATCH_TOLERANCE_PX,
+match_result = landmarks.match_landmarks(
+    ground_truth_centers, predicted_centers, tolerance_px=MATCH_TOLERANCE_PX,
 )
-metrics = landmarks.compute_metrics(match, mm_per_pixel=mm_per_pixel)
+metrics = landmarks.compute_metrics(match_result, mm_per_pixel=mm_per_pixel)
 
 st.divider()
 
-m1, m2, m3, m4 = st.columns(4)
-m1.metric(
+precision_column, recall_column, f1_column, error_column = st.columns(4)
+precision_column.metric(
     label="Precision",
     value=f"{metrics.precision:.3f}",
     help=TOOLTIPS["precision"],
 )
-m2.metric(
+recall_column.metric(
     label="Recall",
     value=f"{metrics.recall:.3f}",
     help=TOOLTIPS["recall"],
 )
-m3.metric(
+f1_column.metric(
     label="F1 Score",
     value=f"{metrics.f1_score:.3f}",
     help=TOOLTIPS["f1"],
 )
-m4.metric(
+error_column.metric(
     label="Median fejl",
     value=f"{metrics.median_error_mm:.3f} mm",
     delta=f"{metrics.median_error_px:.2f} px",
