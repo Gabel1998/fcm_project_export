@@ -21,7 +21,7 @@ SEED_SIZE_PRESETS = {
     "større": (18, 24, 7, 9),
 }
 
-# Konstanter (samme som det model'en så under træning)
+# Konstanter (samme som det modellen så under træning)
 BACKGROUND_REFLECTANCE = 0.85
 SEED_REFLECTANCE_MIN = 0.20
 SEED_REFLECTANCE_MAX = 0.45
@@ -30,29 +30,35 @@ MAX_PLACEMENT_ATTEMPTS = 200
 MM_PER_PIXEL = 0.05
 
 
-def _ellipses_overlap(e1, e2, gap):
-    """Konservativ overlap-tjek: afstand mellem centre vs sum af radier."""
-    cx1, cy1, L1, _, _ = e1
-    cx2, cy2, L2, _, _ = e2
-    r1, r2 = L1 / 2.0, L2 / 2.0
-    dx, dy = cx1 - cx2, cy1 - cy2
-    return np.sqrt(dx * dx + dy * dy) < (r1 + r2 + gap)
+def _ellipses_overlap(ellipse_a, ellipse_b, gap):
+    """Konservativ overlap-tjek: afstand mellem centre vs. sum af radier."""
+    center_x_a, center_y_a, length_a, _, _ = ellipse_a
+    center_x_b, center_y_b, length_b, _, _ = ellipse_b
+    radius_a = length_a / 2.0
+    radius_b = length_b / 2.0
+    delta_x = center_x_a - center_x_b
+    delta_y = center_y_a - center_y_b
+    return np.sqrt(delta_x * delta_x + delta_y * delta_y) < (radius_a + radius_b + gap)
 
 
-def _draw_ellipse(image, cx, cy, length, width, angle_deg, color):
+def _draw_ellipse(image, center_x, center_y, length, width, angle_deg, color):
     """Tegn udfyldt ellipse direkte i numpy-arrayet."""
-    a, b = length / 2.0, width / 2.0
+    # a og b er ellipsens semi-akser (matematisk notation)
+    semi_axis_along_length = length / 2.0
+    semi_axis_along_width = width / 2.0
     angle_rad = np.deg2rad(angle_deg)
-    cos_a, sin_a = np.cos(angle_rad), np.sin(angle_rad)
+    cos_angle = np.cos(angle_rad)
+    sin_angle = np.sin(angle_rad)
 
-    H, W = image.shape
-    yy, xx = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
-    x_shifted, y_shifted = xx - cx, yy - cy
-    x_rot = cos_a * x_shifted + sin_a * y_shifted
-    y_rot = -sin_a * x_shifted + cos_a * y_shifted
+    image_height, image_width = image.shape
+    y_grid, x_grid = np.meshgrid(np.arange(image_height), np.arange(image_width), indexing='ij')
+    x_shifted = x_grid - center_x
+    y_shifted = y_grid - center_y
+    x_rotated = cos_angle * x_shifted + sin_angle * y_shifted
+    y_rotated = -sin_angle * x_shifted + cos_angle * y_shifted
 
-    inside = (x_rot / a) ** 2 + (y_rot / b) ** 2 < 1.0
-    image[inside] = color
+    inside_ellipse = (x_rotated / semi_axis_along_length) ** 2 + (y_rotated / semi_axis_along_width) ** 2 < 1.0
+    image[inside_ellipse] = color
 
 
 def generate_image(
@@ -95,34 +101,34 @@ def generate_image(
 
     rng = np.random.default_rng(random_seed)
     noise_level = NOISE_PRESETS[noise_preset]
-    L_min, L_max, W_min, W_max = SEED_SIZE_PRESETS[seed_size_preset]
+    length_min, length_max, width_min, width_max = SEED_SIZE_PRESETS[seed_size_preset]
 
     # Start med lys plade-baggrund
     image = np.ones((img_size, img_size), dtype=np.float32) * BACKGROUND_REFLECTANCE
 
     placed_ellipses = []
     centers = []
-    margin = L_max // 2 + 2
+    margin = length_max // 2 + 2
 
     for _ in range(num_seeds):
-        length = int(rng.integers(L_min, L_max + 1))
-        width = int(rng.integers(W_min, W_max + 1))
+        length = int(rng.integers(length_min, length_max + 1))
+        width = int(rng.integers(width_min, width_max + 1))
 
         for _ in range(MAX_PLACEMENT_ATTEMPTS):
-            cx = int(rng.integers(margin, img_size - margin))
-            cy = int(rng.integers(margin, img_size - margin))
+            center_x = int(rng.integers(margin, img_size - margin))
+            center_y = int(rng.integers(margin, img_size - margin))
             angle = float(rng.uniform(0, 360))
 
-            new_e = (cx, cy, length, width, angle)
-            collision = any(
-                _ellipses_overlap(new_e, ex, PACKING_GAP_PIXELS)
-                for ex in placed_ellipses
+            new_ellipse = (center_x, center_y, length, width, angle)
+            has_collision = any(
+                _ellipses_overlap(new_ellipse, existing_ellipse, PACKING_GAP_PIXELS)
+                for existing_ellipse in placed_ellipses
             )
-            if not collision:
+            if not has_collision:
                 color = float(rng.uniform(SEED_REFLECTANCE_MIN, SEED_REFLECTANCE_MAX))
-                _draw_ellipse(image, cx, cy, length, width, angle, color)
-                placed_ellipses.append(new_e)
-                centers.append((cx, cy))
+                _draw_ellipse(image, center_x, center_y, length, width, angle, color)
+                placed_ellipses.append(new_ellipse)
+                centers.append((center_x, center_y))
                 break
         # Hvis vi ikke kunne placere efter MAX forsøg: pladen er fuld, skip
         # (vi forsøger ikke at placere flere — lader bare være)
