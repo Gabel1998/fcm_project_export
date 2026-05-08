@@ -95,9 +95,9 @@ def yolo_label_to_centers(label_path, img_size):
                 x_norm = float(parts[1])
                 y_norm = float(parts[2])
                 # Konverter fra normaliseret til pixel-koordinater
-                cx = x_norm * img_size
-                cy = y_norm * img_size
-                centers.append((cx, cy))
+                center_x = x_norm * img_size
+                center_y = y_norm * img_size
+                centers.append((center_x, center_y))
 
     return np.array(centers)
 
@@ -114,8 +114,8 @@ def predictions_to_centers(yolo_result):
         return np.array([]), np.array([])
 
     # boxes.xywh giver [x_center, y_center, width, height] i pixels
-    xywh = yolo_result.boxes.xywh.cpu().numpy()
-    centers = xywh[:, :2]  # bare x_center og y_center
+    boxes_xywh = yolo_result.boxes.xywh.cpu().numpy()
+    centers = boxes_xywh[:, :2]  # bare x_center og y_center
 
     # Hent også confidence scores - kan være godt at vide
     confidences = yolo_result.boxes.conf.cpu().numpy()
@@ -134,9 +134,9 @@ print(f"Fandt {len(val_images)} val-billeder\n")
 
 # Stats vi gennemsnit over alle billeder
 all_distances = []          # afstand fra hvert predicted center til nærmeste ground truth
-total_tp = 0                # korrekte detektioner (tæt på ground truth)
-total_fp = 0                # falske predictions
-total_fn = 0                # missede ground truth landmarks
+total_true_positives = 0                # korrekte detektioner (tæt på ground truth)
+total_false_positives = 0                # falske predictions
+total_false_negatives = 0                # missede ground truth landmarks
 
 # Loop over alle val-billeder
 for img_file in val_images:
@@ -148,52 +148,52 @@ for img_file in val_images:
 
     # Lav YOLO prediction
     results = model.predict(img_path, conf=CONFIDENCE_THRESHOLD, verbose=False, device="mps")
-    pred_centers, _ = predictions_to_centers(results[0])
+    predicted_centers, _ = predictions_to_centers(results[0])
 
     # Match predictions med ground truth (greedy matching efter nærmeste)
     matched_truth = np.zeros(len(truth_centers), dtype=bool)
 
-    for pred in pred_centers:
+    for prediction in predicted_centers:
         if len(truth_centers) == 0:
-            total_fp += 1
+            total_false_positives += 1
             continue
 
         # Beregn afstand fra denne prediction til alle ground truth
-        distances = np.linalg.norm(truth_centers - pred, axis=1)
+        distances = np.linalg.norm(truth_centers - prediction, axis=1)
 
         # Find nærmeste ground truth der ikke allerede er matched
         valid_mask = ~matched_truth
         if not valid_mask.any():
-            total_fp += 1
+            total_false_positives += 1
             continue
 
         masked_distances = np.where(valid_mask, distances, np.inf)
-        nearest_idx = np.argmin(masked_distances)
-        nearest_dist = masked_distances[nearest_idx]
+        nearest_index = np.argmin(masked_distances)
+        nearest_distance = masked_distances[nearest_index]
 
-        if nearest_dist <= MATCH_DISTANCE_PIXELS:
-            total_tp += 1
-            matched_truth[nearest_idx] = True
-            all_distances.append(nearest_dist)
+        if nearest_distance <= MATCH_DISTANCE_PIXELS:
+            total_true_positives += 1
+            matched_truth[nearest_index] = True
+            all_distances.append(nearest_distance)
         else:
-            total_fp += 1
+            total_false_positives += 1
 
     # Ground truth uden matching prediction
-    total_fn += np.sum(~matched_truth)
+    total_false_negatives += np.sum(~matched_truth)
 
 
 # =====================================================================
 # STEP C: BEREGN OG VIS LANDMARK-METRICS
 # =====================================================================
-precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
-recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0
+precision = total_true_positives / (total_true_positives + total_false_positives) if (total_true_positives + total_false_positives) > 0 else 0
+recall = total_true_positives / (total_true_positives + total_false_negatives) if (total_true_positives + total_false_negatives) > 0 else 0
 f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
 
 # Statistik over predicted-vs-truth afstand (i pixels OG mm)
-distances_arr = np.array(all_distances)
-mean_dist_px = distances_arr.mean() if len(distances_arr) > 0 else 0
-median_dist_px = np.median(distances_arr) if len(distances_arr) > 0 else 0
-max_dist_px = distances_arr.max() if len(distances_arr) > 0 else 0
+distances_array = np.array(all_distances)
+mean_dist_px = distances_array.mean() if len(distances_array) > 0 else 0
+median_dist_px = np.median(distances_array) if len(distances_array) > 0 else 0
+max_dist_px = distances_array.max() if len(distances_array) > 0 else 0
 
 # Konvertér til mm vha. metadata
 mean_dist_mm = mean_dist_px * MM_PER_PIXEL
@@ -204,9 +204,9 @@ print("=" * 60)
 print("LANDMARK DETECTION RESULTATER")
 print("=" * 60)
 print(f"\nMatching tolerance: {MATCH_DISTANCE_PIXELS} pixels = {MATCH_DISTANCE_PIXELS * MM_PER_PIXEL:.2f} mm\n")
-print(f"True positives:   {total_tp}")
-print(f"False positives:  {total_fp}")
-print(f"False negatives:  {total_fn}")
+print(f"True positives:   {total_true_positives}")
+print(f"False positives:  {total_false_positives}")
+print(f"False negatives:  {total_false_negatives}")
 print(f"")
 print(f"Precision:  {precision:.4f}")
 print(f"Recall:     {recall:.4f}")
@@ -224,7 +224,7 @@ print(f"  Max:         {max_dist_px:.2f} pixels = {max_dist_mm:.3f} mm")
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
 # Histogram i pixels
-axes[0].hist(distances_arr, bins=30, color='steelblue', edgecolor='black')
+axes[0].hist(distances_array, bins=30, color='steelblue', edgecolor='black')
 axes[0].axvline(mean_dist_px, color='red', linestyle='--',
                 label=f'Gennemsnit: {mean_dist_px:.2f} px')
 axes[0].axvline(median_dist_px, color='orange', linestyle='--',
@@ -236,7 +236,7 @@ axes[0].legend()
 axes[0].grid(True, alpha=0.3)
 
 # Histogram i mm
-axes[1].hist(distances_arr * MM_PER_PIXEL, bins=30, color='seagreen', edgecolor='black')
+axes[1].hist(distances_array * MM_PER_PIXEL, bins=30, color='seagreen', edgecolor='black')
 axes[1].axvline(mean_dist_mm, color='red', linestyle='--',
                 label=f'Gennemsnit: {mean_dist_mm:.3f} mm')
 axes[1].axvline(median_dist_mm, color='orange', linestyle='--',
@@ -247,7 +247,7 @@ axes[1].set_title('Center-præcision (millimeter)')
 axes[1].legend()
 axes[1].grid(True, alpha=0.3)
 
-plt.suptitle(f'YOLOv11n som Landmark Detector - {len(distances_arr)} korrekte detektioner',
+plt.suptitle(f'YOLOv11n som Landmark Detector - {len(distances_array)} korrekte detektioner',
              fontsize=13, y=1.02)
 plt.tight_layout()
 plt.savefig("landmark_precision_histogram.png", dpi=100, bbox_inches='tight')
@@ -268,7 +268,7 @@ demo_label_path = os.path.join(VAL_LABELS_DIR, demo_img_file.replace('.png', '.t
 # Hent data
 truth_centers = yolo_label_to_centers(demo_label_path, IMG_SIZE)
 demo_results = model.predict(demo_img_path, conf=CONFIDENCE_THRESHOLD, verbose=False, device="mps")
-pred_centers, pred_confs = predictions_to_centers(demo_results[0])
+predicted_centers, predicted_confidences = predictions_to_centers(demo_results[0])
 
 # Load billedet
 from PIL import Image
@@ -299,14 +299,14 @@ if demo_results[0].boxes is not None:
         rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1,
                                  linewidth=1.5, edgecolor='cyan', facecolor='none')
         axes[2].add_patch(rect)
-axes[2].set_title(f"3. YOLOv11 bbox predictions\n({len(pred_centers)} detektioner)",
+axes[2].set_title(f"3. YOLOv11 bbox predictions\n({len(predicted_centers)} detektioner)",
                   fontsize=14)
 axes[2].axis('off')
 
 # Panel 4: Konverterede landmarks
 axes[3].imshow(demo_img, cmap='gray')
-if len(pred_centers) > 0:
-    axes[3].scatter(pred_centers[:, 0], pred_centers[:, 1],
+if len(predicted_centers) > 0:
+    axes[3].scatter(predicted_centers[:, 0], predicted_centers[:, 1],
                     s=80, marker='x', color='red', linewidth=2)
 axes[3].set_title(f"4. Landmarks\n(centrum af bbox)", fontsize=14)
 axes[3].axis('off')
