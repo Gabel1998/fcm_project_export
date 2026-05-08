@@ -258,7 +258,7 @@ m2.metric(
 )
 m3.metric(
     label="F1 Score",
-    value=f"{metrics.f1:.3f}",
+    value=f"{metrics.f1_score:.3f}",
     help=TOOLTIPS["f1"],
 )
 m4.metric(
