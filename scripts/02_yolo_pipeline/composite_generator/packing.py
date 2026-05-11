@@ -90,3 +90,64 @@ def dense(
     """
     return scatter(canvas_size=canvas_size, seed_stamps=seed_stamps,
                    gap_pixels=0, max_attempts=max_attempts, rng=rng)
+
+
+def t_config(
+    canvas_size: tuple[int, int],
+    seed_stamps: list[SeedStamp],
+    rng: np.random.Generator,
+) -> list[Placement]:
+    """Sample 2-3 frø placeret i T- eller L-konfiguration.
+
+    Algoritme:
+    1. Placer første frø på random rotation
+    2. Placer andet frø vinkelret på første, så de rør i en kant
+    3. Med 50% chance, placer tredje frø oven på krydset
+
+    Bruges som mindre cluster — composer-driver kalder denne flere gange
+    pr. scene for at få mange T-konfigurationer.
+    """
+    canvas_w, canvas_h = canvas_size
+    if len(seed_stamps) < 2:
+        return []
+
+    # Vælg op til 3 stamps
+    n = min(3, len(seed_stamps))
+    placements: list[Placement] = []
+
+    # Frø 1: midt på canvas
+    radius_1 = _bounding_radius(seed_stamps[0])
+    margin = int(radius_1 * 1.5) + 10
+    if margin * 2 >= canvas_w or margin * 2 >= canvas_h:
+        return []
+
+    cx1 = int(rng.integers(margin, canvas_w - margin))
+    cy1 = int(rng.integers(margin, canvas_h - margin))
+    rot1 = float(rng.uniform(0, 360))
+    placements.append(Placement(center_x=cx1, center_y=cy1,
+                                  rotation_deg=rot1, seed_index=0))
+
+    # Frø 2: vinkelret, rører frø 1
+    if n >= 2:
+        radius_2 = _bounding_radius(seed_stamps[1])
+        # Offset i retning vinkelret på frø 1's hovedakse
+        rot2 = rot1 + 90.0 + float(rng.uniform(-15, 15))
+        offset_dist = radius_1 + radius_2 - 5  # lille overlap så de rør
+        rad = np.deg2rad(rot1)
+        cx2 = cx1 + int(offset_dist * np.cos(rad))
+        cy2 = cy1 + int(offset_dist * np.sin(rad))
+        # Clip til canvas
+        cx2 = max(margin, min(canvas_w - margin, cx2))
+        cy2 = max(margin, min(canvas_h - margin, cy2))
+        placements.append(Placement(center_x=cx2, center_y=cy2,
+                                      rotation_deg=rot2, seed_index=1))
+
+    # Frø 3 (50% chance): på krydset
+    if n >= 3 and rng.random() < 0.5:
+        rot3 = float(rng.uniform(0, 360))
+        cx3 = (cx1 + cx2) // 2
+        cy3 = (cy1 + cy2) // 2
+        placements.append(Placement(center_x=cx3, center_y=cy3,
+                                      rotation_deg=rot3, seed_index=2))
+
+    return placements

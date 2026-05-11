@@ -107,3 +107,39 @@ def test_dense_packs_tighter_than_scatter():
         return sum(dists) / len(dists)
 
     assert avg_min_dist(p_dense) < avg_min_dist(p_scatter)
+
+
+def test_t_config_creates_touching_seeds():
+    """t_config returnerer en cluster af 2-3 frø der rør hinanden."""
+    stamps = [_make_stamp(30, 30, i) for i in range(3)]
+
+    placements = packing.t_config(
+        canvas_size=(400, 400), seed_stamps=stamps,
+        rng=np.random.default_rng(0))
+
+    assert 2 <= len(placements) <= 3
+
+    # Mindst ét par skal være tæt på hinanden (distance < sum af radier + lille gap)
+    if len(placements) >= 2:
+        radius = 0.5 * (30 * 30 + 30 * 30) ** 0.5  # ~21
+        min_dist = min(
+            ((p1.center_x - p2.center_x) ** 2 +
+             (p1.center_y - p2.center_y) ** 2) ** 0.5
+            for i, p1 in enumerate(placements)
+            for p2 in placements[i+1:])
+        # Frø rør hinanden = distance < 2*radius
+        assert min_dist < 2 * radius + 5
+
+
+def test_t_config_perpendicular_orientation():
+    """For ekstra realisme: andet frø står ~vinkelret på første."""
+    stamps = [_make_stamp(40, 15, i) for i in range(3)]  # aflange majs
+
+    placements = packing.t_config(
+        canvas_size=(400, 400), seed_stamps=stamps,
+        rng=np.random.default_rng(0))
+
+    if len(placements) >= 2:
+        rot_diff = abs(placements[0].rotation_deg - placements[1].rotation_deg) % 180
+        # Vinkelret = 90° ± 30° tolerance
+        assert 60 < rot_diff < 120, f"Ikke vinkelret: {rot_diff}°"
