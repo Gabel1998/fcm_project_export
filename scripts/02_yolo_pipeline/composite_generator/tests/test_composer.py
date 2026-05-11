@@ -72,3 +72,63 @@ def test_render_centers_within_canvas():
     for cx, cy in result.centers:
         assert 0 <= cx < 200
         assert 0 <= cy < 200
+
+
+def test_render_applies_shadow():
+    """Når shadow.enabled=True, skal pixels under skygge være mørkere end uden skygge."""
+    bg = _make_bg(200, 200)
+    stamps = [_make_stamp(40, 40)]
+    placements = [Placement(center_x=100, center_y=100, rotation_deg=0, seed_index=0)]
+
+    no_shadow = composer.render(bg, stamps, placements,
+                                  shadow_config=None, feather_px=0.0)
+    with_shadow = composer.render(bg, stamps, placements,
+                                    shadow_config={"enabled": True,
+                                                    "offset_px": [10, 10],
+                                                    "blur_sigma": 3.0,
+                                                    "opacity": 0.5},
+                                    feather_px=0.0)
+    # Pixel nedenfor og til højre for stampen skal være mørkere med skygge
+    no_sh_val = no_shadow.image[125, 125, :].mean()
+    with_sh_val = with_shadow.image[125, 125, :].mean()
+    assert with_sh_val < no_sh_val - 5, \
+        f"Skygge ikke synlig: uden={no_sh_val:.1f}, med={with_sh_val:.1f}"
+
+
+def test_render_applies_feather():
+    """Med feather > 0, skal kanten af paste-området være blødere."""
+    bg = _make_bg(200, 200)
+    stamps = [_make_stamp(40, 40)]
+    placements = [Placement(center_x=100, center_y=100, rotation_deg=0, seed_index=0)]
+
+    no_feather = composer.render(bg, stamps, placements,
+                                   shadow_config=None, feather_px=0.0)
+    with_feather = composer.render(bg, stamps, placements,
+                                     shadow_config=None, feather_px=3.0)
+
+    # Lige uden for stamp-grænsen: med feather skal pixelen være en blanding,
+    # uden feather er pixelen ren baggrund. Tjek gradient.
+    edge_no = no_feather.image[80, 100, 0]      # ren baggrund
+    edge_with = with_feather.image[80, 100, 0]  # bør være blandet
+    assert edge_with != edge_no, "Feather har ingen effekt"
+
+
+def test_render_applies_scale_jitter():
+    """Med scale > 1.0 i placement, skal bbox være større."""
+    bg = _make_bg(400, 400)
+    stamps = [_make_stamp(30, 30)]
+
+    placement_small = [Placement(center_x=200, center_y=200,
+                                   rotation_deg=0, seed_index=0, scale=1.0)]
+    placement_large = [Placement(center_x=200, center_y=200,
+                                   rotation_deg=0, seed_index=0, scale=1.5)]
+
+    result_small = composer.render(bg, stamps, placement_small,
+                                     shadow_config=None, feather_px=0.0)
+    result_large = composer.render(bg, stamps, placement_large,
+                                     shadow_config=None, feather_px=0.0)
+
+    w_small, h_small = result_small.bbox_sizes[0]
+    w_large, h_large = result_large.bbox_sizes[0]
+    assert w_large > w_small * 1.3
+    assert h_large > h_small * 1.3

@@ -38,6 +38,10 @@ class Config:
     seeds_max: int
     gap_pixels: int
     max_attempts: int
+    # Realisme-features (Task 9)
+    shadow_config: Optional[dict] = None
+    feather_px: float = 0.0
+    scale_jitter: tuple[float, float] = (1.0, 1.0)
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":
@@ -55,6 +59,9 @@ class Config:
             seeds_max=data["seeds_per_composite"]["max"],
             gap_pixels=data["packing_gap_pixels"],
             max_attempts=data["max_placement_attempts"],
+            shadow_config=data.get("shadow"),
+            feather_px=data.get("edge_feather_px", 0.0),
+            scale_jitter=tuple(data.get("seed_scale_jitter", [1.0, 1.0])),
         )
 
 
@@ -149,9 +156,14 @@ def run(config: Config) -> None:
             gap_pixels=config.gap_pixels, max_attempts=config.max_attempts,
             rng=rng)
 
-        # Render compositen: baggrund + frø paste'et med alpha-blending
+        # Sæt scale-jitter på hver placement (tilfældig skalering inden for [min, max])
+        for pl in placements:
+            pl.scale = float(rng.uniform(*config.scale_jitter))
+
+        # Render compositen: baggrund + frø paste'et med alpha-blending + realisme-features
         result = composer.render(bg, stamps, placements,
-                                  shadow_config=None, feather_px=0.0)
+                                  shadow_config=config.shadow_config,
+                                  feather_px=config.feather_px)
 
         # Skriv billede og label atomisk (ingen halvt-skrevne filer)
         _atomic_write_image(image_path, result.image)
