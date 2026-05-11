@@ -188,6 +188,14 @@ def run(config: Config) -> None:
 
     print(f"\nFærdig. Output: {config.output_dir}")
 
+    # Auto-genereret preview
+    try:
+        import visualize
+        preview_path = visualize.make_preview(config.output_dir, n_samples=8)
+        print(f"Preview: {preview_path}")
+    except Exception as e:
+        print(f"Kunne ikke lave preview: {e}")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
