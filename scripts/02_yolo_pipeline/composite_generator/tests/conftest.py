@@ -1,6 +1,6 @@
 """Pytest-fixtures til composite-pipeline tests.
 
-Vi laver små test-fixtures (10x10 frø, 200x200 baggrunde) i en tempdir
+Vi laver små test-fixtures (~20x30 frø, 200x150 baggrunde) i en tempdir
 så testene er hurtige og uafhængige af det rigtige dataset.
 """
 import sys
