@@ -1,0 +1,52 @@
+# === Paths (kan overrides ved kørsel) ===
+seed_image_dir: ~/Development/dataset/Corn/images
+background_paths:
+  - ~/Development/dataset/Corn/Belt1.png
+  - ~/Development/dataset/Corn/Belt2.png
+output_dir: ~/Development/school/fcm_project_export/data/composite_v1
+
+# === Dataset-skala ===
+num_composites: 2000
+train_val_split: 0.80
+random_seed: 42
+
+# === Composite-størrelse ===
+canvas_size: [2000, 1500]   # (width, height)
+
+# === Frø pr. scene ===
+seeds_per_composite:
+  min: 40
+  max: 80
+
+# === Pakkings-strategi ===
+packing_strategy_mix:
+  scatter: 0.50
+  dense: 0.30
+  t_config: 0.20
+packing_gap_pixels: 4
+max_placement_attempts: 200
+
+# === Frø-transformation ===
+seed_rotation_range: [0, 360]
+seed_scale_jitter: [0.85, 1.15]
+
+# === Rendering ===
+shadow:
+  enabled: true
+  offset_px: [3, 3]
+  blur_sigma: 4.0
+  opacity: 0.35
+edge_feather_px: 1.5
+
+# === Baggrund-augmentation ===
+background_random_rotation: true
+background_color_jitter: 0.05
+background_brightness_jitter: 0.10
+
+# === Output ===
+image_format: png
+bbox_strategy: tight
+
+# === Validering ===
+visualize_n_samples: 8
+log_seed_metadata: true
