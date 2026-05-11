@@ -79,3 +79,31 @@ def test_scatter_deterministic_with_seed():
                           rng=np.random.default_rng(42))
     assert [(p.center_x, p.center_y) for p in p1] == \
            [(p.center_x, p.center_y) for p in p2]
+
+
+def test_dense_packs_tighter_than_scatter():
+    """dense-strategi placerer frø tættere end scatter med samme antal."""
+    stamps = [_make_stamp(25, 25, i) for i in range(15)]
+
+    p_scatter = packing.scatter(
+        canvas_size=(400, 400), seed_stamps=stamps,
+        gap_pixels=10, max_attempts=200,
+        rng=np.random.default_rng(0))
+    p_dense = packing.dense(
+        canvas_size=(400, 400), seed_stamps=stamps,
+        max_attempts=200, rng=np.random.default_rng(0))
+
+    # Gennemsnitlig minimum-afstand mellem nabofrø
+    def avg_min_dist(placements):
+        if len(placements) < 2:
+            return float('inf')
+        dists = []
+        for i, p1 in enumerate(placements):
+            min_d = min(
+                ((p1.center_x - p2.center_x) ** 2 +
+                 (p1.center_y - p2.center_y) ** 2) ** 0.5
+                for j, p2 in enumerate(placements) if i != j)
+            dists.append(min_d)
+        return sum(dists) / len(dists)
+
+    assert avg_min_dist(p_dense) < avg_min_dist(p_scatter)

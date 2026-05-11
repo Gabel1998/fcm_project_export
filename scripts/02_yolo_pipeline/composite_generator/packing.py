@@ -76,3 +76,17 @@ def scatter(
         # hvis vi ikke fandt plads efter max_attempts: fortsæt med næste frø
 
     return placements
+
+
+def dense(
+    canvas_size: tuple[int, int],
+    seed_stamps: list[SeedStamp],
+    max_attempts: int,
+    rng: np.random.Generator,
+) -> list[Placement]:
+    """Tæt pakning: som scatter men med gap_pixels=0 (frø rør hinanden).
+
+    Genbruges scatter med gap_pixels=0 — det er den enkleste DRY-måde.
+    """
+    return scatter(canvas_size=canvas_size, seed_stamps=seed_stamps,
+                   gap_pixels=0, max_attempts=max_attempts, rng=rng)
