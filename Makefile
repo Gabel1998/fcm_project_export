@@ -92,8 +92,10 @@ status:
 	@ls -la models/active 2>/dev/null | awk '{print "  ", $$NF}' || echo "  (ingen)"
 	@echo ""
 	@echo "=== Kører træning lige nu? ==="
-	@if pgrep -fl "ultralytics\|train_composite\|train_yolo" 2>/dev/null; then \
+	@MATCH=$$(ps aux | grep -E "03b_train_composite|03_train_yolo|ultralytics" | grep -v grep); \
+	if [ -n "$$MATCH" ]; then \
 		echo "  ↑ Ja"; \
+		echo "$$MATCH" | awk '{printf "    PID %s, CPU %s%%, RAM %s%%\n", $$2, $$3, $$4}'; \
 	else \
 		echo "  Nej"; \
 	fi
