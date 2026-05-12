@@ -154,9 +154,14 @@ def t_config(
         if collision:
             continue
 
-        # Beregn frø 2's geometriske position ud fra frø 1
+        # Beregn frø 2's position så de visuelt rør (bbox-projektion langs rot1)
+        # Seed 1 (rot=rot1): lokal x-akse peger langs rot1, så half-extent = w1/2
+        # Seed 2 (rot=rot1+90): lokal y-akse peger langs rot1, så half-extent = h2/2
+        h1, w1 = seed_stamps[0].rgba.shape[:2]
+        h2, w2 = seed_stamps[1].rgba.shape[:2]
+        offset_dist = w1 / 2 + h2 / 2 - 3  # -3 for at kompensere for elliptisk fyldning af bbox
+        # Beholdes til radius_2 reference og collision-tjek
         r2 = _bounding_radius(seed_stamps[1])
-        offset_dist = radius_1 + r2  # rør hinanden
         rad = np.deg2rad(rot1_try)
         cx2_try = cx1_try + int(offset_dist * np.cos(rad))
         cy2_try = cy1_try + int(offset_dist * np.sin(rad))
@@ -201,8 +206,9 @@ def t_config(
     if n >= 3 and rng.random() < 0.5:
         radius_3 = _bounding_radius(seed_stamps[2])
         rot3 = rot1 + float(rng.uniform(-15, 15))  # samme orientering som seed 1
-        # Forlæng kæden ved at fortsætte samme retning fra seed 2
-        offset_dist_3 = radius_2 + radius_3
+        # Forlæng kæden: seed 2's half-extent langs rot1 = h2/2; seed 3 ved rot1 = w3/2
+        h3, w3 = seed_stamps[2].rgba.shape[:2]
+        offset_dist_3 = h2 / 2 + w3 / 2 - 3
         rad = np.deg2rad(rot1)  # samme retning som seed 1→seed 2
         cx3 = cx2 + int(offset_dist_3 * np.cos(rad))
         cy3 = cy2 + int(offset_dist_3 * np.sin(rad))

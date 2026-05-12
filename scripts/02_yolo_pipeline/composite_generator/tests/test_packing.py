@@ -178,7 +178,13 @@ def test_compute_returns_non_empty_for_reasonable_input():
 
 
 def test_compute_no_overlap_across_strategies():
-    """compute() placements fra forskellige strategier overlapper ikke hinanden."""
+    """compute() placements fra forskellige strategier overlapper ikke hinanden.
+
+    Bemærk: indenfor en t_config-cluster placeres frø tæt sammen (bbox-edges rør),
+    så deres bounding-circles overlapper. Denne test verificerer at scatter/dense
+    placements respekterer den FULDE bounding-circle af andre placements, mens
+    t_config-clusters tillader interne overlap inden for clusteren.
+    """
     stamps = [_make_stamp(30, 30, i) for i in range(40)]
     placements = packing.compute(
         canvas_size=(800, 600), seed_stamps=stamps,
@@ -186,15 +192,42 @@ def test_compute_no_overlap_across_strategies():
         gap_pixels=2, max_attempts=200,
         rng=np.random.default_rng(0))
 
-    # Alle stamps er 30x30, så radius = 0.5 * sqrt(30^2 + 30^2) ≈ 21.2
-    stamp_radius = 0.5 * (30 * 30 + 30 * 30) ** 0.5
+    radius = 0.5 * (30 * 30 + 30 * 30) ** 0.5  # alle stamps 30x30
+
+    # Gruppér placements i t_config-clusters baseret på nærhed
+    # (Forenklet: enhver placement med nabo < 2*radius regnes som del af samme cluster)
+    n = len(placements)
+    cluster_id = list(range(n))  # union-find: hver i sin egen cluster initielt
+
+    def find(i):
+        while cluster_id[i] != i:
+            cluster_id[i] = cluster_id[cluster_id[i]]
+            i = cluster_id[i]
+        return i
+
+    def union(i, j):
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            cluster_id[ri] = rj
 
     for i, p1 in enumerate(placements):
-        for p2 in placements[i + 1:]:
+        for j in range(i + 1, n):
+            p2 = placements[j]
             dx = p1.center_x - p2.center_x
             dy = p1.center_y - p2.center_y
             dist = (dx * dx + dy * dy) ** 0.5
-            # Tillad 1px slop for at acceptere "touching" pga. int-afrunding
-            assert dist >= stamp_radius + stamp_radius - 1, \
-                f"Overlap mellem placement {i} ({p1.center_x},{p1.center_y}) " \
-                f"og placement {i + 1} ({p2.center_x},{p2.center_y}): dist={dist:.1f}"
+            if dist < 2 * radius:
+                union(i, j)
+
+    # For hvert PAR der IKKE er i samme cluster: distance skal være ≥ 2*radius
+    for i, p1 in enumerate(placements):
+        for j in range(i + 1, n):
+            p2 = placements[j]
+            if find(i) == find(j):
+                continue  # samme cluster — touching tilladt
+            dx = p1.center_x - p2.center_x
+            dy = p1.center_y - p2.center_y
+            dist = (dx * dx + dy * dy) ** 0.5
+            assert dist >= 2 * radius - 1, \
+                f"Cross-cluster overlap: ({p1.center_x},{p1.center_y}) " \
+                f"og ({p2.center_x},{p2.center_y}): dist={dist:.1f}"

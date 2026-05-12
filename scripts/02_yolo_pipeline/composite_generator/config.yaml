@@ -20,9 +20,9 @@ seeds_per_composite:
 
 # === Pakkings-strategi ===
 packing_strategy_mix:
-  scatter: 0.50
+  scatter: 0.40          # var 0.50
   dense: 0.30
-  t_config: 0.20
+  t_config: 0.30         # var 0.20 — flere L-clusters så de er nemmere at se i preview
 packing_gap_pixels: 4
 max_placement_attempts: 200
 
