@@ -45,6 +45,11 @@ help:
 	@echo "  make eval [NAME=v4]                 Eval på val-set efter træning"
 	@echo "  make predict [NAME=v4]              Predict på sample-billede"
 	@echo ""
+	@echo "  Versionér model:"
+	@echo "  make save-model [NAME=v4] [MODEL_DIR=v4]"
+	@echo "                                      Arkivér best.pt + plots + notes til models/<MODEL_DIR>/"
+	@echo "  make switch-model MODEL_DIR=v4      Skift active-symlink til models/<MODEL_DIR>/"
+	@echo ""
 	@echo "  Demo & dev:"
 	@echo "  make demo                           Start Streamlit-demo"
 	@echo "  make test                           Kør pytest på composite-pipeline"
@@ -146,6 +151,33 @@ predict:
 	$(PYTHON) -c "from ultralytics import YOLO; \
 	YOLO('$(RUN_DIR)/weights/best.pt').predict('$$SAMPLE', save=True, imgsz=$(IMGSZ), device='mps')"
 	@echo "Resultat i runs/detect/predict/ (åbn nyeste)"
+
+# Arkiver en trænet model til models/<MODEL_DIR>/ med notes og plots
+# Brug: make save-model NAME=v5_t_heavy MODEL_DIR=v5_t_heavy
+# Default MODEL_DIR er det samme som NAME hvis ikke specificeret
+MODEL_DIR ?= $(NAME)
+save-model:
+	@test -f $(RUN_DIR)/weights/best.pt || (echo "❌ best.pt ikke fundet på $(RUN_DIR)/weights/"; exit 1)
+	@echo "Arkiverer $(NAME) → models/$(MODEL_DIR)/"
+	@mkdir -p models/$(MODEL_DIR)
+	@cp $(RUN_DIR)/weights/best.pt models/$(MODEL_DIR)/best.pt
+	@cp $(RUN_DIR)/results.png models/$(MODEL_DIR)/results.png 2>/dev/null || echo "  (ingen results.png at kopiere)"
+	@cp $(RUN_DIR)/results.csv models/$(MODEL_DIR)/results.csv 2>/dev/null || true
+	@if [ ! -f models/$(MODEL_DIR)/notes.md ]; then \
+		printf "# %s\n\n**Trænet:** $$(date +%%Y-%%m-%%d)\n**Dataset:** $(DATASET)\n**Arkitektur:** YOLOv11n\n\n## Trænings-config\n\n- imgsz: $(IMGSZ)\n- batch: $(BATCH)\n- epochs: $(EPOCHS)\n- device: mps\n\n## Metrics (val-set)\n\nKør \`make eval NAME=$(NAME)\` og indsæt tal her.\n\n## Noter\n\n_Tilføj observationer her: hvad gik godt, hvad gik dårligt, sammenligning med tidligere modeller._\n" "$(MODEL_DIR)" > models/$(MODEL_DIR)/notes.md; \
+		echo "  Genererede notes.md template"; \
+	else \
+		echo "  notes.md findes — ikke overskrevet"; \
+	fi
+	@echo ""
+	@echo "Færdig. For at skifte aktiv model til denne:"
+	@echo "  ./switch_model.sh $(MODEL_DIR)"
+	@echo ""
+	@echo "Eller manuelt:"
+	@echo "  cd models && ln -sfn $(MODEL_DIR) active && cd .."
+
+switch-model:
+	@./switch_model.sh $(MODEL_DIR)
 
 demo:
 	$(VENV)/streamlit run scripts/03_demo/app.py
