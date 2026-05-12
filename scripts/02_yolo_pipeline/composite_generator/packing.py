@@ -151,3 +151,91 @@ def t_config(
                                       rotation_deg=rot3, seed_index=2))
 
     return placements
+
+
+def compute(
+    canvas_size: tuple[int, int],
+    seed_stamps: list[SeedStamp],
+    strategy_mix: dict[str, float],
+    gap_pixels: int,
+    max_attempts: int,
+    rng: np.random.Generator,
+) -> list[Placement]:
+    """Top-level dispatcher: bland strategy_mix-vægt for hvert frø.
+
+    Algoritme:
+    - Først laver vi T-config-clusters: bruger ~strategy_mix['t_config']
+      procent af frøene i clusters á 2-3.
+    - Resten af frøene placeres med en blanding af scatter og dense
+      proportional til deres relative vægt.
+    - Alle placements har globalt-unikke seed_index'er.
+    """
+    n_total = len(seed_stamps)
+    if n_total == 0:
+        return []
+
+    # Fallback: hvis ingen mix er angivet, bruges ren scatter
+    if strategy_mix is None:
+        strategy_mix = {"scatter": 1.0, "dense": 0.0, "t_config": 0.0}
+
+    # Step 1: hvor mange frø skal i t-config clusters?
+    t_weight = strategy_mix.get("t_config", 0.0)
+    n_t_config = int(n_total * t_weight)
+
+    all_placements: list[Placement] = []
+    used_stamps_indices = set()
+
+    # Step 1a: T-config clusters (2-3 frø ad gangen)
+    seed_idx = 0
+    while n_t_config >= 2 and seed_idx + 1 < n_total:
+        cluster_stamps = seed_stamps[seed_idx:seed_idx + 3]
+        sub_placements = t_config(canvas_size, cluster_stamps, rng)
+        # Remap seed_index fra lokalt (0/1/2) til globalt offset
+        for sp in sub_placements:
+            sp.seed_index = seed_idx + sp.seed_index
+            all_placements.append(sp)
+            used_stamps_indices.add(sp.seed_index)
+        consumed = len(sub_placements)
+        # Hvis t_config returnerede 0 placements: skip en stamp for at undgå uendelig løkke
+        seed_idx += consumed if consumed > 0 else 1
+        n_t_config -= consumed
+
+    # Step 2: scatter vs dense for de resterende frø
+    remaining_stamps_with_idx = [
+        (i, s) for i, s in enumerate(seed_stamps)
+        if i not in used_stamps_indices
+    ]
+
+    scatter_weight = strategy_mix.get("scatter", 0.0)
+    dense_weight = strategy_mix.get("dense", 0.0)
+    total_w = scatter_weight + dense_weight
+    if total_w == 0:
+        return all_placements
+
+    # Beregn opdeling: de første n_scatter går til scatter, resten til dense
+    n_scatter = int(len(remaining_stamps_with_idx) * scatter_weight / total_w)
+
+    scatter_idxs = remaining_stamps_with_idx[:n_scatter]
+    dense_idxs = remaining_stamps_with_idx[n_scatter:]
+
+    # Scatter-del: kald scatter med de udvalgte stamps
+    if scatter_idxs:
+        scatter_stamps = [s for _, s in scatter_idxs]
+        scatter_placements = scatter(canvas_size, scatter_stamps,
+                                     gap_pixels, max_attempts, rng)
+        # Remap lokalt seed_index (0..len-1) til globalt index
+        for sp in scatter_placements:
+            sp.seed_index = scatter_idxs[sp.seed_index][0]
+            all_placements.append(sp)
+
+    # Dense-del: kald dense med de udvalgte stamps
+    if dense_idxs:
+        dense_stamps = [s for _, s in dense_idxs]
+        dense_placements = dense(canvas_size, dense_stamps,
+                                 max_attempts, rng)
+        # Remap lokalt seed_index (0..len-1) til globalt index
+        for dp in dense_placements:
+            dp.seed_index = dense_idxs[dp.seed_index][0]
+            all_placements.append(dp)
+
+    return all_placements

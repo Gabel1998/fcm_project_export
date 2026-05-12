@@ -42,6 +42,8 @@ class Config:
     shadow_config: Optional[dict] = None
     feather_px: float = 0.0
     scale_jitter: tuple[float, float] = (1.0, 1.0)
+    # Pakkings-strategi-blanding (Task 12)
+    strategy_mix: dict = None
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":
@@ -62,6 +64,7 @@ class Config:
             shadow_config=data.get("shadow"),
             feather_px=data.get("edge_feather_px", 0.0),
             scale_jitter=tuple(data.get("seed_scale_jitter", [1.0, 1.0])),
+            strategy_mix=data["packing_strategy_mix"],
         )
 
 
@@ -150,9 +153,10 @@ def run(config: Config) -> None:
             print(f"  Composite {i}: ingen gyldige frø, springer over")
             continue
 
-        # Pak frø på canvas med scatter-strategi (ingen overlap)
-        placements = packing.scatter(
+        # Pak frø på canvas med blandet strategi (scatter + dense + t_config)
+        placements = packing.compute(
             canvas_size=config.canvas_size, seed_stamps=stamps,
+            strategy_mix=config.strategy_mix,
             gap_pixels=config.gap_pixels, max_attempts=config.max_attempts,
             rng=rng)
 

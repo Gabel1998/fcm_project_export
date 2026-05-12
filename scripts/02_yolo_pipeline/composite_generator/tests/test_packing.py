@@ -143,3 +143,35 @@ def test_t_config_perpendicular_orientation():
         rot_diff = abs(placements[0].rotation_deg - placements[1].rotation_deg) % 180
         # Vinkelret = 90° ± 30° tolerance
         assert 60 < rot_diff < 120, f"Ikke vinkelret: {rot_diff}°"
+
+
+def test_compute_blends_strategies():
+    """compute() returnerer placements der reflekterer strategy_mix."""
+    stamps = [_make_stamp(25, 25, i) for i in range(30)]
+
+    # Pure scatter
+    p_scatter_only = packing.compute(
+        canvas_size=(800, 600), seed_stamps=stamps,
+        strategy_mix={"scatter": 1.0, "dense": 0.0, "t_config": 0.0},
+        gap_pixels=4, max_attempts=200,
+        rng=np.random.default_rng(0))
+    # Pure dense
+    p_dense_only = packing.compute(
+        canvas_size=(800, 600), seed_stamps=stamps,
+        strategy_mix={"scatter": 0.0, "dense": 1.0, "t_config": 0.0},
+        gap_pixels=4, max_attempts=200,
+        rng=np.random.default_rng(0))
+
+    # Dense passer flere frø ind end scatter på samme canvas
+    assert len(p_dense_only) >= len(p_scatter_only)
+
+
+def test_compute_returns_non_empty_for_reasonable_input():
+    """Standard config skal returnere mindst 10 placements."""
+    stamps = [_make_stamp(20, 30, i) for i in range(60)]
+    p = packing.compute(
+        canvas_size=(1000, 800), seed_stamps=stamps,
+        strategy_mix={"scatter": 0.5, "dense": 0.3, "t_config": 0.2},
+        gap_pixels=4, max_attempts=200,
+        rng=np.random.default_rng(0))
+    assert len(p) > 10
