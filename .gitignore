@@ -46,5 +46,10 @@ dataset/
 *.npy
 *.npz
 
+# Composite-pipeline output — billeder og labels kan regenereres fra config + seed_dir + Belt-baggrunde
+# Vi committer kun data.yaml, generation_metadata.json og preview.png
+data/composite_*/images/
+data/composite_*/labels/
+
 # Resultater - kan genereres på ny
 *.cache
