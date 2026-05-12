@@ -78,6 +78,15 @@ Composite-pipelinen er model-agnostisk — den producerer YOLO-format labels der
 
 Hvert frø-stamps bbox beregnes fra dets alpha-bounding-box (efter rotation). YOLO lærer dermed at relatere bbox-form til visuel frø-form — bedre signal end den faste 18×18 fra v1-v3.
 
+### 3.6 Scale-jitter droppet (revideret 2026-05-12)
+
+Det oprindelige design havde `seed_scale_jitter: [0.85, 1.15]` som en augmentation der skalerede hvert frø-stamp med ±15% før paste. Den blev droppet efter Gate 2 review af to grunde:
+
+1. **Forfalsker naturlig variation.** Vi har 12.384 rigtige Videometer-stamps med indbygget variation fra forskellige majs-sorter, modenhed og kornstørrelser. Kunstig skalering ovenpå forvrænger de korrekte relative størrelser — et reelt 80×200 majs ved 0.05 mm/pixel matcher virkeligheden, men 0.85× = 68×170 majs er en størrelse der ikke eksisterer.
+2. **Skabte overlap-bug.** Packing's collision-check bruger `_bounding_radius` baseret på `stamp.rgba.shape` (pre-scale), men composer skalerede efterfølgende stampen op til 1.15×. Resultatet: to stamps placeret af packing som "ikke-overlappende" kunne efter scale overlappe visuelt. Brød Videometer-constraint om at majs aldrig ligger oven på hinanden.
+
+Robusthed mod skala-variation kommer i stedet fra YOLOs egne træningstime-augmentations (`imgsz`, crop-augmentation, mosaic). Config er sat til `seed_scale_jitter: [1.0, 1.0]` så feltet kan let genaktiveres hvis vi senere implementerer skala-aware collision-check.
+
 ## 4. Arkitektur og position i projektet
 
 ```
@@ -182,7 +191,7 @@ Hvert frø-stamps bbox beregnes fra dets alpha-bounding-box (efter rotation). YO
 - `render(background: np.ndarray, seed_stamps: list[SeedStamp], placements: list[Placement], shadow_config, feather_px, scale_jitter) -> (composite: np.ndarray, centers: list[tuple[int,int]], bbox_sizes: list[tuple[int,int]])`
 
 **Rendering-pipeline pr. frø:**
-1. Skalér frø-stamp efter en uniform random faktor i `seed_scale_jitter` (default ±15%).
+1. ~~Skalér frø-stamp efter en uniform random faktor i `seed_scale_jitter` (default ±15%).~~ **Droppet 2026-05-12** — se sektion 3.6.
 2. Rotér frø-stamp efter `placement.rotation_deg`.
 3. Beregn dropshadow: kopi af stampens alpha-kanal, gaussian-blurret med `shadow.blur_sigma`, forskudt med `shadow.offset_px`, multipliceret med `shadow.opacity`, paste'et som mørkning af baggrunden.
 4. Feather alpha-kanten: gaussian-blur af alpha-masken med `edge_feather_px` så hård kant blødes ud.
@@ -257,7 +266,7 @@ max_placement_attempts: 200
 
 # === Frø-transformation ===
 seed_rotation_range: [0, 360]
-seed_scale_jitter: [0.85, 1.15]
+seed_scale_jitter: [1.0, 1.0]  # droppet pr. sektion 3.6 — naturlig variation kommer fra de 12.384 stamps
 
 # === Rendering ===
 shadow:
