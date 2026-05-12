@@ -159,7 +159,7 @@ def t_config(
         # Seed 2 (rot=rot1+90): lokal y-akse peger langs rot1, så half-extent = h2/2
         h1, w1 = seed_stamps[0].rgba.shape[:2]
         h2, w2 = seed_stamps[1].rgba.shape[:2]
-        offset_dist = w1 / 2 + h2 / 2 - 3  # -3 for at kompensere for elliptisk fyldning af bbox
+        offset_dist = w1 / 2 + h2 / 2  # ingen buffer — bbox-edges rør netop
         # Beholdes til radius_2 reference og collision-tjek
         r2 = _bounding_radius(seed_stamps[1])
         rad = np.deg2rad(rot1_try)
@@ -208,7 +208,7 @@ def t_config(
         rot3 = rot1 + float(rng.uniform(-15, 15))  # samme orientering som seed 1
         # Forlæng kæden: seed 2's half-extent langs rot1 = h2/2; seed 3 ved rot1 = w3/2
         h3, w3 = seed_stamps[2].rgba.shape[:2]
-        offset_dist_3 = h2 / 2 + w3 / 2 - 3
+        offset_dist_3 = h2 / 2 + w3 / 2  # ingen buffer — bbox-edges rør netop
         rad = np.deg2rad(rot1)  # samme retning som seed 1→seed 2
         cx3 = cx2 + int(offset_dist_3 * np.cos(rad))
         cy3 = cy2 + int(offset_dist_3 * np.sin(rad))

@@ -28,7 +28,7 @@ max_placement_attempts: 200
 
 # === Frø-transformation ===
 seed_rotation_range: [0, 360]
-seed_scale_jitter: [0.85, 1.15]
+seed_scale_jitter: [1.0, 1.0]  # dropped: scale-jitter inkompatibel med packing's collision-check (overlap-bug)
 
 # === Rendering ===
 shadow:
