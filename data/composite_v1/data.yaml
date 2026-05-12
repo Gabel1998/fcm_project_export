@@ -1,0 +1,6 @@
+names:
+- seed
+nc: 1
+path: /Users/andreassogardgabel/Development/school/fcm_project_export/data/composite_v1
+train: images/train
+val: images/val

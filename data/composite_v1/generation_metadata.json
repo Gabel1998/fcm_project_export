@@ -1,0 +1,42 @@
+{
+  "config": {
+    "seed_image_dir": "/Users/andreassogardgabel/Development/dataset/Corn/images",
+    "background_paths": [
+      "/Users/andreassogardgabel/Development/dataset/Corn/Belt1.png",
+      "/Users/andreassogardgabel/Development/dataset/Corn/Belt2.png"
+    ],
+    "output_dir": "/Users/andreassogardgabel/Development/school/fcm_project_export/data/composite_v1",
+    "num_composites": 2000,
+    "train_val_split": 0.8,
+    "random_seed": 42,
+    "canvas_size": [
+      4096,
+      2704
+    ],
+    "seeds_min": 40,
+    "seeds_max": 80,
+    "gap_pixels": 4,
+    "max_attempts": 200,
+    "shadow_config": {
+      "enabled": true,
+      "offset_px": [
+        3,
+        3
+      ],
+      "blur_sigma": 4.0,
+      "opacity": 0.35
+    },
+    "feather_px": 1.5,
+    "scale_jitter": [
+      1.0,
+      1.0
+    ],
+    "strategy_mix": {
+      "scatter": 0.4,
+      "dense": 0.3,
+      "t_config": 0.3
+    }
+  },
+  "num_seeds_in_pool": 12384,
+  "elapsed_seconds": 2392.0610978603363
+}
