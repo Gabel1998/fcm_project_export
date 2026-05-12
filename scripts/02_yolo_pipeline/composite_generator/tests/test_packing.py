@@ -175,3 +175,26 @@ def test_compute_returns_non_empty_for_reasonable_input():
         gap_pixels=4, max_attempts=200,
         rng=np.random.default_rng(0))
     assert len(p) > 10
+
+
+def test_compute_no_overlap_across_strategies():
+    """compute() placements fra forskellige strategier overlapper ikke hinanden."""
+    stamps = [_make_stamp(30, 30, i) for i in range(40)]
+    placements = packing.compute(
+        canvas_size=(800, 600), seed_stamps=stamps,
+        strategy_mix={"scatter": 0.4, "dense": 0.3, "t_config": 0.3},
+        gap_pixels=2, max_attempts=200,
+        rng=np.random.default_rng(0))
+
+    # Alle stamps er 30x30, så radius = 0.5 * sqrt(30^2 + 30^2) ≈ 21.2
+    stamp_radius = 0.5 * (30 * 30 + 30 * 30) ** 0.5
+
+    for i, p1 in enumerate(placements):
+        for p2 in placements[i + 1:]:
+            dx = p1.center_x - p2.center_x
+            dy = p1.center_y - p2.center_y
+            dist = (dx * dx + dy * dy) ** 0.5
+            # Tillad 1px slop for at acceptere "touching" pga. int-afrunding
+            assert dist >= stamp_radius + stamp_radius - 1, \
+                f"Overlap mellem placement {i} ({p1.center_x},{p1.center_y}) " \
+                f"og placement {i + 1} ({p2.center_x},{p2.center_y}): dist={dist:.1f}"
