@@ -1,0 +1,50 @@
+# Variant: dense_only — 100% tæt pakning (intet scatter, intet T-config)
+#
+# Brug: make gen-config CONFIG=dense_only DATASET=v3_dense_only
+#
+# Formål: ekstrem-test af hvor tæt modellen kan håndtere pakkede frø.
+# Bruges som diagnostic — hvis denne klarer sig dårligt vs. den balancerede
+# default, ved vi at høj-tæthed er en udfordring for modellen.
+
+seed_image_dir: ~/Development/dataset/Corn/images
+background_paths:
+  - ~/Development/dataset/Corn/Belt1.png
+  - ~/Development/dataset/Corn/Belt2.png
+output_dir: ~/Development/school/fcm_project_export/data/composite_v3_dense_only
+
+num_composites: 2000
+train_val_split: 0.80
+random_seed: 42
+
+canvas_size: [4096, 2704]
+
+seeds_per_composite:
+  min: 60          # bumpet op fordi dense kan klemme flere ind
+  max: 100
+
+packing_strategy_mix:
+  scatter: 0.00
+  dense: 1.00
+  t_config: 0.00
+packing_gap_pixels: 0
+max_placement_attempts: 300   # flere forsøg fordi det er sværere
+
+seed_rotation_range: [0, 360]
+seed_scale_jitter: [1.0, 1.0]
+
+shadow:
+  enabled: true
+  offset_px: [3, 3]
+  blur_sigma: 4.0
+  opacity: 0.35
+edge_feather_px: 1.5
+
+background_random_rotation: true
+background_color_jitter: 0.0
+background_brightness_jitter: 0.0
+
+image_format: png
+bbox_strategy: tight
+
+visualize_n_samples: 8
+log_seed_metadata: true

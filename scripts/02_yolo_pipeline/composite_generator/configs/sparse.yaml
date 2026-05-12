@@ -1,0 +1,52 @@
+# Variant: sparse — sparsomt pakkede scener
+#
+# Brug: make gen-config CONFIG=sparse DATASET=v4_sparse
+#
+# Formål: kontrol-eksperiment. Få frø pr. scene, ingen tæt pakning,
+# ingen T-konfigurationer. Tester modellen på "nemme" scenarier.
+#
+# Hvis den her klarer sig MEGET bedre end default, ved vi at
+# detection-task'en bliver svær ved tætpakkede scener (forventeligt).
+
+seed_image_dir: ~/Development/dataset/Corn/images
+background_paths:
+  - ~/Development/dataset/Corn/Belt1.png
+  - ~/Development/dataset/Corn/Belt2.png
+output_dir: ~/Development/school/fcm_project_export/data/composite_v4_sparse
+
+num_composites: 2000
+train_val_split: 0.80
+random_seed: 42
+
+canvas_size: [4096, 2704]
+
+seeds_per_composite:
+  min: 15
+  max: 30          # halveret fra default 40-80
+
+packing_strategy_mix:
+  scatter: 1.00
+  dense: 0.00
+  t_config: 0.00
+packing_gap_pixels: 20   # bumpet op for ekstra spacing
+max_placement_attempts: 200
+
+seed_rotation_range: [0, 360]
+seed_scale_jitter: [1.0, 1.0]
+
+shadow:
+  enabled: true
+  offset_px: [3, 3]
+  blur_sigma: 4.0
+  opacity: 0.35
+edge_feather_px: 1.5
+
+background_random_rotation: true
+background_color_jitter: 0.0
+background_brightness_jitter: 0.0
+
+image_format: png
+bbox_strategy: tight
+
+visualize_n_samples: 8
+log_seed_metadata: true
