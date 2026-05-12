@@ -132,7 +132,7 @@ def t_config(
         radius_2 = _bounding_radius(seed_stamps[1])
         # Offset i retning vinkelret på frø 1's hovedakse
         rot2 = rot1 + 90.0 + float(rng.uniform(-15, 15))
-        offset_dist = radius_1 + radius_2 - 5  # lille overlap så de rør
+        offset_dist = radius_1 + radius_2  # rør hinanden, ingen overlap (Videometer: aldrig oven på hinanden)
         rad = np.deg2rad(rot1)
         cx2 = cx1 + int(offset_dist * np.cos(rad))
         cy2 = cy1 + int(offset_dist * np.sin(rad))

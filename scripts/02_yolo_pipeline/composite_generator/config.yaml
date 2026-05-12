@@ -11,7 +11,7 @@ train_val_split: 0.80
 random_seed: 42
 
 # === Composite-størrelse ===
-canvas_size: [2000, 1500]   # (width, height)
+canvas_size: [4096, 2704]   # (width, height) — Belt1's blå zone, Belt2 resizes til match
 
 # === Frø pr. scene ===
 seeds_per_composite:
@@ -40,8 +40,8 @@ edge_feather_px: 1.5
 
 # === Baggrund-augmentation ===
 background_random_rotation: true
-background_color_jitter: 0.05
-background_brightness_jitter: 0.10
+background_color_jitter: 0.0           # Videometer: fast produktionsbelysning — ingen color-jitter
+background_brightness_jitter: 0.0      # Videometer: fast produktionsbelysning — ingen brightness-jitter
 
 # === Output ===
 image_format: png

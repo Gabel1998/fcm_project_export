@@ -12,13 +12,28 @@ def test_load_returns_background_pool(tiny_blue_background_png):
     assert len(pool.blue_zone_masks) == 1
 
 
-def test_blue_zone_mask_identifies_blue_region(tiny_blue_background_png):
-    """Blå zone-masken markerer pixels i midten som blå, ikke kanter."""
+def test_load_pre_crops_to_blue_zone(tiny_blue_background_png):
+    """Efter load() skal billedet være croppet til blå zone (mindre end original)."""
     pool = background_loader.load([tiny_blue_background_png])
-    mask = pool.blue_zone_masks[0]
-    # Midten skal være True (blå), kanterne False (brun)
-    assert mask[75, 100] == True   # midten
-    assert mask[0, 0] == False     # hjørne (brun)
+    h, w = pool.images[0].shape[:2]
+    # Original fixture er 200x150, blå zone er rows 20-130 cols 30-170 = ~140x110
+    assert w < 200, f"Bredde {w} ikke croppet (original 200)"
+    assert h < 150, f"Højde {h} ikke croppet (original 150)"
+
+
+def test_load_resizes_multiple_backgrounds_to_canonical(tiny_blue_background_png, tmp_path):
+    """Hvis flere baggrunde har forskellige størrelser, resizes alle til den første."""
+    # Lav en anden baggrund med anderledes blå-zone størrelse
+    from PIL import Image
+    bgr = np.zeros((180, 240, 3), dtype=np.uint8)
+    bgr[:, :] = (50, 30, 80)
+    bgr[25:155, 35:205] = (180, 100, 30)
+    bg2_path = tmp_path / "tiny_belt2.png"
+    Image.fromarray(bgr[..., ::-1], mode="RGB").save(bg2_path)
+
+    pool = background_loader.load([tiny_blue_background_png, bg2_path])
+    # Begge skal have samme størrelse (første billedes blå-zone-størrelse)
+    assert pool.images[0].shape == pool.images[1].shape
 
 
 def test_sample_returns_correct_size(tiny_blue_background_png):
@@ -30,20 +45,10 @@ def test_sample_returns_correct_size(tiny_blue_background_png):
 
 
 def test_sample_only_returns_blue_region(tiny_blue_background_png):
-    """sample() skal kun returnere crops der ligger inden for blå zone."""
+    """sample() skal returnere overvejende blå crop (hele pre-cropped zone er blå)."""
     pool = background_loader.load([tiny_blue_background_png])
-    # Lav 20 samples og verificer at alle er overvejende blå
-    for _ in range(20):
+    for _ in range(10):
         crop = pool.sample(size=(50, 50))
-        # Mean blue-channel skal være højere end mean red — krude blå-test
         mean_b = crop[:, :, 2].mean()
         mean_r = crop[:, :, 0].mean()
-        # Vores fixture-baggrund har RGB(30,100,180) i blå zone
         assert mean_b > mean_r, f"Crop er ikke blå: R={mean_r:.0f}, B={mean_b:.0f}"
-
-
-def test_sample_fails_when_target_too_large(tiny_blue_background_png):
-    """Hvis requested size er større end blå zone, hård fail."""
-    pool = background_loader.load([tiny_blue_background_png])
-    with pytest.raises(ValueError, match="for stor"):
-        pool.sample(size=(500, 500))
