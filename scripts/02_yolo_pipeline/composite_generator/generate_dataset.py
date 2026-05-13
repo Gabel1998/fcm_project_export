@@ -121,6 +121,20 @@ def run(config: Config) -> None:
     if len(seed_paths) == 0:
         raise RuntimeError(f"Ingen PNG'er i {config.seed_image_dir}")
 
+    # Del seed-poolen i to DISJUNKTE sub-pools — én til train-composites og én
+    # til val-composites. Uden denne split ville samme frø-PNG'er optræde i
+    # begge sets, og modellen ville scorer kunstigt højt på val pga. data leakage.
+    # Vi bruger samme split-ratio som composites og en separat seeded RNG så
+    # rækkefølgen af seed_paths ikke påvirker selve composite-genereringen.
+    split_rng = np.random.default_rng(config.random_seed)
+    seed_indices = split_rng.permutation(len(seed_paths))
+    n_train_seeds = int(len(seed_paths) * config.train_val_split)
+    train_seeds = [seed_paths[i] for i in seed_indices[:n_train_seeds]]
+    val_seeds = [seed_paths[i] for i in seed_indices[n_train_seeds:]]
+    print(f"      Split (disjunkt for at undgå data leakage):")
+    print(f"      - {len(train_seeds)} frø til train-composites")
+    print(f"      - {len(val_seeds)} frø til val-composites")
+
     print(f"[3/3] Genererer {config.num_composites} composites")
     start = time.time()
     # Beregn antal trænings-billeder ud fra split-ratio
@@ -141,11 +155,17 @@ def run(config: Config) -> None:
 
         # Vælg et tilfældigt antal frø (mellem seeds_min og seeds_max)
         seed_count = int(rng.integers(config.seeds_min, config.seeds_max + 1))
-        # Vælg seed_count unikke frø-indeks fra seed-poolen
-        chosen = rng.choice(len(seed_paths), size=seed_count, replace=False)
+        # Vælg fra det rette sub-pool — train-composites må kun bruge train_seeds,
+        # val-composites må kun bruge val_seeds (ingen overlap mellem sets).
+        seed_pool_for_split = train_seeds if split == "train" else val_seeds
+        # Cap seed_count til pool-størrelse: hvis pool er for lille til at
+        # sample seed_count unikke, sampler vi bare alle der findes.
+        # (Realistisk scenarie: kun problem i mini-test, ikke produktion.)
+        seed_count = min(seed_count, len(seed_pool_for_split))
+        chosen = rng.choice(len(seed_pool_for_split), size=seed_count, replace=False)
         stamps = []
         for idx in chosen:
-            stamp = seed_loader.load(seed_paths[idx])
+            stamp = seed_loader.load(seed_pool_for_split[idx])
             if stamp is not None:
                 stamps.append(stamp)
 
@@ -197,6 +217,9 @@ def run(config: Config) -> None:
                         [str(p) for p in v] if isinstance(v, list) else v)
                     for k, v in asdict(config).items()},
         "num_seeds_in_pool": len(seed_paths),
+        "num_seeds_train_pool": len(train_seeds),
+        "num_seeds_val_pool": len(val_seeds),
+        "data_leakage_check": "train_seeds og val_seeds er disjunkte (sample uden overlap)",
         "elapsed_seconds": time.time() - start,
     }
     (config.output_dir / "generation_metadata.json").write_text(
