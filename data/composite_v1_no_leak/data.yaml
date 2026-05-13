@@ -1,0 +1,6 @@
+names:
+- seed
+nc: 1
+path: data/composite_v1_no_leak
+train: images/train
+val: images/val
