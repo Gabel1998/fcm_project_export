@@ -41,6 +41,7 @@ help:
 	@echo ""
 	@echo "  Træn:"
 	@echo "  make train [DATASET=v1] [NAME=v4]   Træn YOLO på dataset"
+	@echo "  make resume NAME=v4                 Genoptag afbrudt træning fra last.pt"
 	@echo "  make watch [NAME=v4]                Live monitorering under træning"
 	@echo "  make eval [NAME=v4]                 Eval på val-set efter træning"
 	@echo "  make predict [NAME=v4]              Predict på sample-billede"
@@ -132,6 +133,17 @@ train:
 	$(PYTHON) scripts/02_yolo_pipeline/03b_train_composite.py \
 		--dataset $(DATASET) --name $(NAME) \
 		--epochs $(EPOCHS) --imgsz $(IMGSZ) --batch $(BATCH)
+
+# Genoptag afbrudt træning fra last.pt
+# Brug: make resume NAME=v5_no_leak
+# YOLO loader optimizer-state, scheduler og epoch-count automatisk
+resume:
+	@test -f runs/detect/runs/train/$(NAME)/weights/last.pt \
+		|| test -f $(RUN_DIR)/weights/last.pt \
+		|| (echo "❌ Ingen last.pt for $(NAME). Forventet på runs/detect/runs/train/$(NAME)/weights/last.pt eller $(RUN_DIR)/weights/last.pt"; exit 1)
+	@LAST_PT=$$(find runs/detect/runs/train/$(NAME)/weights/last.pt runs/train/$(NAME)/weights/last.pt 2>/dev/null | head -1); \
+	echo "Genoptager $(NAME) fra $$LAST_PT"; \
+	$(PYTHON) -c "from ultralytics import YOLO; YOLO('$$LAST_PT').train(resume=True)"
 
 watch:
 	./scripts/watch_training.sh $(NAME)
