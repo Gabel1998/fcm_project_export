@@ -42,6 +42,8 @@ help:
 	@echo "  Træn:"
 	@echo "  make train [DATASET=v1] [NAME=v4]   Træn YOLO på dataset"
 	@echo "  make resume NAME=v4                 Genoptag afbrudt træning fra last.pt"
+	@echo "  make auto-resume NAME=v4 [MAX_ATTEMPTS=20]"
+	@echo "                                      Auto-restart hvis MPS-bug crasher (loop)"
 	@echo "  make watch [NAME=v4]                Live monitorering under træning"
 	@echo "  make eval [NAME=v4]                 Eval på val-set efter træning"
 	@echo "  make predict [NAME=v4]              Predict på sample-billede"
@@ -144,6 +146,13 @@ resume:
 	@LAST_PT=$$(find runs/detect/runs/train/$(NAME)/weights/last.pt runs/train/$(NAME)/weights/last.pt 2>/dev/null | head -1); \
 	echo "Genoptager $(NAME) fra $$LAST_PT"; \
 	$(PYTHON) -c "from ultralytics import YOLO; YOLO('$$LAST_PT').train(resume=True)"
+
+# Auto-resume — kør resume i loop indtil træning afslutter eller MAX_ATTEMPTS opbrugt
+# Brug: make auto-resume NAME=v5_no_leak [MAX_ATTEMPTS=30]
+# Hver gang Ultralytics MPS-bug rammer, restarter den automatisk fra last.pt.
+MAX_ATTEMPTS ?= 20
+auto-resume:
+	./scripts/auto_resume.sh $(NAME) $(MAX_ATTEMPTS)
 
 watch:
 	./scripts/watch_training.sh $(NAME)
