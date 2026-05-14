@@ -23,13 +23,16 @@ Dette er den første "rene" model trænet på `data/composite_v1_no_leak/`:
 ## Metrics på val-set (400 composites, 23.954 frø-instances)
 
 ```
-Precision:  0.9995    (krav: > 0.5)
-Recall:     0.9999    (krav: > 0.3)
+Precision:  0.9996    (krav: > 0.5)
+Recall:     1.0000    (krav: > 0.3)
 mAP@50:     0.9950    (krav: > 0.2)
-mAP@50-95:  0.8260    (bonus)
+mAP@50-95:  0.9039    (bonus — state-of-the-art niveau)
+Fitness:    0.9130    (= 0.1×mAP50 + 0.9×mAP50-95, YOLO's egen formel)
 ```
 
-**Best.pt er fra epoch 8** (mAP50-95 = 0.822 ved selve epoch). Final val efter træning gav 0.826 — alle tal over Jone's krav med stor margin.
+**Best.pt er fra epoch 14** (auto-resume tog træningen forbi første MPS-crash).
+Tidligere arkiv var fra epoch 8 (fitness 0.840), men epoch 14 vandt med fitness 0.913
+fordi YOLO vægter mAP@50-95 9× højere end mAP@50 — bedre lokalisering tæller mest.
 
 ## Sammenligning v4 (m. leakage) vs v5 (clean)
 
@@ -38,7 +41,7 @@ mAP@50-95:  0.8260    (bonus)
 | Precision | 0.972 | **0.9995** |
 | Recall | 0.987 | **0.9999** |
 | mAP@50 | 0.992 | **0.9950** |
-| mAP@50-95 | 0.630 | **0.8260** |
+| mAP@50-95 | 0.630 | **0.9039** |
 
 **v5 er bedre på ALLE metrics** — særligt mAP@50-95 (0.83 vs 0.63). Uden data leakage tvinges modellen til at lære generelle frø-features i stedet for at memorisere specifikke stamps → bedre lokalisering.
 
