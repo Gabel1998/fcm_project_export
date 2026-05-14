@@ -53,3 +53,6 @@ data/composite_*/labels/
 
 # Resultater - kan genereres på ny
 *.cache
+
+# Test-billeder til upload-demo (kan regenereres)
+test_images/*.png
