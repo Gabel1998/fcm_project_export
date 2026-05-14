@@ -54,7 +54,8 @@ help:
 	@echo "  make switch-model MODEL_DIR=v4      Skift active-symlink til models/<MODEL_DIR>/"
 	@echo ""
 	@echo "  Demo & dev:"
-	@echo "  make demo                           Start Streamlit-demo"
+	@echo "  make demo                           Start Streamlit-demo (syntetisk data)"
+	@echo "  make upload-demo                    Upload-test: kør active model på dit eget billede"
 	@echo "  make test                           Kør pytest på composite-pipeline"
 	@echo "  make clean-tmp                      Slet /tmp/composite_* sanity checks"
 	@echo ""
@@ -204,6 +205,10 @@ switch-model:
 
 demo:
 	$(VENV)/streamlit run scripts/03_demo/app.py
+
+# Upload-demo: test active model på et rigtigt billede du selv uploader
+upload-demo:
+	$(VENV)/streamlit run scripts/03_demo/upload_demo.py
 
 test:
 	$(VENV)/pytest scripts/02_yolo_pipeline/composite_generator/tests/ -v
