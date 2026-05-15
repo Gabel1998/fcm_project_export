@@ -21,7 +21,9 @@ BATCH   ?= 4
 
 COMPOSITE_DIR := scripts/02_yolo_pipeline/composite_generator
 DATA_DIR      := data/$(DATASET)
-RUN_DIR       := runs/train/$(NAME)
+# Ultralytics ligger output på enten runs/train/<NAME> eller runs/detect/runs/train/<NAME>
+# afhængig af om project-stien er absolut eller relativ. Find den rigtige automatisk.
+RUN_DIR       := $(shell test -d runs/detect/runs/train/$(NAME) && echo "runs/detect/runs/train/$(NAME)" || echo "runs/train/$(NAME)")
 
 .PHONY: help gen gen-small preview train watch eval predict demo status test clean-tmp
 
@@ -77,9 +79,10 @@ status:
 		done; \
 	else echo "  (ingen)"; fi
 	@echo ""
-	@echo "=== Trænings-runs (runs/train/*) ==="
-	@if ls -d runs/train/* >/dev/null 2>&1; then \
-		for r in runs/train/*; do \
+	@echo "=== Trænings-runs (runs/train/* eller runs/detect/runs/train/*) ==="
+	@RUNS=$$(ls -d runs/train/* runs/detect/runs/train/* 2>/dev/null); \
+	if [ -n "$$RUNS" ]; then \
+		for r in $$RUNS; do \
 			if [ -f $$r/results.csv ]; then \
 				e=$$(tail -n +2 $$r/results.csv | wc -l | tr -d ' '); \
 				echo "  $$r:  $$e epochs"; \
