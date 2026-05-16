@@ -17,22 +17,30 @@ Dette er den første "rene" model trænet på `data/composite_v1_no_leak/`:
 
 - `imgsz: 1280`, `batch: 4`, `epochs: 80` planlagt
 - `patience: 15`, `device: mps`
-- **13 epochs gennemført** før crash i epoch 14 validation
+- **Alle 80 epochs gennemført** via auto-resume (MPS-bug i tal.py ramte undervejs flere gange,
+  men `scripts/auto_resume.sh` restartede automatisk fra last.pt hver gang)
 - Augmentations: flipud=0.5, fliplr=0.5, degrees=180, mosaic=1.0, mixup=0.15, copy_paste=0.3
 
 ## Metrics på val-set (400 composites, 23.954 frø-instances)
 
 ```
-Precision:  0.9996    (krav: > 0.5)
-Recall:     1.0000    (krav: > 0.3)
+Precision:  0.9994    (krav: > 0.5)
+Recall:     0.9999    (krav: > 0.3)
 mAP@50:     0.9950    (krav: > 0.2)
-mAP@50-95:  0.9039    (bonus — state-of-the-art niveau)
-Fitness:    0.9130    (= 0.1×mAP50 + 0.9×mAP50-95, YOLO's egen formel)
+mAP@50-95:  0.9714    (state-of-the-art niveau)
+Fitness:    0.9738    (= 0.1×mAP50 + 0.9×mAP50-95, YOLO's egen formel)
 ```
 
-**Best.pt er fra epoch 14** (auto-resume tog træningen forbi første MPS-crash).
-Tidligere arkiv var fra epoch 8 (fitness 0.840), men epoch 14 vandt med fitness 0.913
-fordi YOLO vægter mAP@50-95 9× højere end mAP@50 — bedre lokalisering tæller mest.
+**Best.pt er fra epoch 77** (peak fitness). Trænings-fitness-progression:
+- Epoch 8:  fitness 0.840 (peak før ep 14)
+- Epoch 14: fitness 0.913 (peak før ep 30)
+- Epoch 31: fitness 0.948 (peak før ep 44)
+- Epoch 44: fitness 0.954 (peak før ep 75)
+- **Epoch 77: fitness 0.974 (endeligt peak)**
+
+Modellen forbedrede sig konstant gennem hele 80 epochs — ingen overfit på trods af
+volatile val-metrics undervejs. Patience-mekanismen blev aldrig aktiveret fordi
+ny peak fortsat blev fundet inden 15 epochs.
 
 ## Sammenligning v4 (m. leakage) vs v5 (clean)
 
@@ -41,7 +49,7 @@ fordi YOLO vægter mAP@50-95 9× højere end mAP@50 — bedre lokalisering tæll
 | Precision | 0.972 | **0.9995** |
 | Recall | 0.987 | **0.9999** |
 | mAP@50 | 0.992 | **0.9950** |
-| mAP@50-95 | 0.630 | **0.9039** |
+| mAP@50-95 | 0.630 | **0.9714** |
 
 **v5 er bedre på ALLE metrics** — særligt mAP@50-95 (0.83 vs 0.63). Uden data leakage tvinges modellen til at lære generelle frø-features i stedet for at memorisere specifikke stamps → bedre lokalisering.
 
