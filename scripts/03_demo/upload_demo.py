@@ -6,13 +6,16 @@ Beregnet til validering på rigtige Videometer-scener efter fabrik-besøg.
 Kør:
     .venv/bin/streamlit run scripts/03_demo/upload_demo.py
 """
+import csv
 import io
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import streamlit as st
+import yaml
 from PIL import Image, ImageDraw, ImageFont
 
 # Projekt-root så vi kan finde models/active/
@@ -30,8 +33,8 @@ st.set_page_config(
 
 st.title("FCM Landmark Detection — Upload-test")
 st.markdown(
-    "Upload et rigtigt billede fra Videometer-maskinen og se hvor godt "
-    "modellen detekterer majs-frø."
+    "Upload et billede fra Videometer og se hvor godt "
+    "modellen detekterer majs."
 )
 
 
@@ -46,7 +49,7 @@ def load_model():
     """
     from ultralytics import YOLO
     if not ACTIVE_MODEL.exists():
-        st.error(f"❌ Mangler model på {ACTIVE_MODEL}")
+        st.error(f"Mangler model på {ACTIVE_MODEL}")
         st.stop()
     return YOLO(str(ACTIVE_MODEL))
 
@@ -55,6 +58,117 @@ model = load_model()
 active_version = ACTIVE_MODEL.parent.resolve().name
 st.sidebar.markdown(f"**Aktiv model:** `{active_version}`")
 st.sidebar.markdown(f"**Vægt-fil:** `{ACTIVE_MODEL.relative_to(PROJECT_ROOT)}`")
+
+
+@st.cache_data(show_spinner=False)
+def load_model_metadata(version_name: str, _model) -> dict:
+    """Samler alt metadata om aktiv model i ét dict.
+
+    Kilder: best.pt (filstørrelse), Ultralytics' info-summary (arkitektur,
+    layers, params, gradients), results.csv (training-metrikker), args.yaml
+    (training-config), data.yaml (dataset-info).
+    Cachet på version_name så vi kun læser én gang pr. session.
+    """
+    meta: dict = {"version": version_name}
+    model_path = PROJECT_ROOT / "models" / version_name / "best.pt"
+    if model_path.exists():
+        meta["file_size_mb"] = model_path.stat().st_size / (1024 * 1024)
+
+    # Arkitektur: tæl direkte fra modellen (Ultralytics' "layers"-tal er
+    # antallet af leaf-modules, dvs. modules uden children). Det er mere
+    # robust end at parse logger-output, som ikke altid bliver fanget når
+    # Streamlit kører.
+    for param in _model.model.parameters():
+        param.requires_grad_(True)
+    meta["layers"] = sum(
+        1 for _, mod in _model.model.named_modules() if len(mod._modules) == 0
+    )
+    meta["parameters"] = sum(p.numel() for p in _model.model.parameters())
+    meta["gradients"] = sum(
+        p.numel() for p in _model.model.parameters() if p.requires_grad
+    )
+
+    # Arkitektur-navn via detection-head'en (v10Detect = YOLOv10, Detect = YOLO11)
+    for module in _model.model.modules():
+        cls_name = module.__class__.__name__
+        if cls_name == "v10Detect":
+            meta["arch"] = "YOLOv10n"
+            break
+        if cls_name == "Detect":
+            meta["arch"] = "YOLO11n"
+            break
+
+    # Training metrics: sidste række i results.csv
+    results_csv = PROJECT_ROOT / "models" / version_name / "results.csv"
+    if results_csv.exists():
+        with open(results_csv) as f:
+            rows = list(csv.DictReader(f))
+        if rows:
+            last = rows[-1]
+            meta["mAP50"] = float(last.get("metrics/mAP50(B)", 0))
+            meta["mAP50_95"] = float(last.get("metrics/mAP50-95(B)", 0))
+            meta["precision"] = float(last.get("metrics/precision(B)", 0))
+            meta["recall"] = float(last.get("metrics/recall(B)", 0))
+
+    # Training-config fra args.yaml (ligger i runs/, ikke models/)
+    args_path = (
+        PROJECT_ROOT / "runs" / "detect" / "runs" / "train" / version_name / "args.yaml"
+    )
+    if args_path.exists():
+        with open(args_path) as f:
+            args = yaml.safe_load(f) or {}
+        for key in ("epochs", "imgsz", "batch", "patience", "device"):
+            if key in args:
+                meta[key] = args[key]
+        meta["data_yaml"] = args.get("data")
+
+    # Dataset-info: tæl filer i train/val mapperne
+    data_yaml_str = meta.get("data_yaml")
+    if data_yaml_str:
+        data_yaml_path = Path(data_yaml_str)
+        if data_yaml_path.exists():
+            with open(data_yaml_path) as f:
+                dcfg = yaml.safe_load(f) or {}
+            dataset_root = data_yaml_path.parent
+            meta["dataset_name"] = dataset_root.name
+            for split_key, count_key in (("train", "train_count"), ("val", "val_count")):
+                split_dir = dataset_root / dcfg.get(split_key, "")
+                if split_dir.exists():
+                    meta[count_key] = sum(
+                        1 for p in split_dir.iterdir()
+                        if p.suffix.lower() in {".png", ".jpg", ".jpeg"}
+                    )
+
+    return meta
+
+
+def merge_close_centers(xyxy: np.ndarray, confs: np.ndarray, min_dist_px: float):
+    """Center-distance NMS: behold detections hvis center er langt nok fra alle
+    allerede accepterede. Højeste confidence vinder ved konflikt.
+
+    Argumenter:
+        xyxy: (N, 4) array af bbox-hjørner
+        confs: (N,) array af confidence-værdier
+        min_dist_px: minimum center-til-center afstand i pixels
+
+    Returnerer (filtreret_xyxy, filtreret_confs, antal_fjernet).
+    """
+    if len(xyxy) == 0:
+        return xyxy, confs, 0
+    centers = np.stack(
+        [(xyxy[:, 0] + xyxy[:, 2]) / 2,
+         (xyxy[:, 1] + xyxy[:, 3]) / 2],
+        axis=1,
+    )
+    # Sortér efter confidence (højeste først) — vinder ved konflikt
+    order = np.argsort(-confs)
+    kept: list[int] = []
+    for idx in order:
+        c = centers[idx]
+        if all(np.linalg.norm(c - centers[k]) >= min_dist_px for k in kept):
+            kept.append(int(idx))
+    n_removed = len(xyxy) - len(kept)
+    return xyxy[kept], confs[kept], n_removed
 
 
 # ---------------------------------------------------------------------------
@@ -79,13 +193,46 @@ imgsz = st.sidebar.select_slider(
     "Input-størrelse (px)",
     options=[640, 960, 1280, 1920, 2560],
     value=1280,
-    help="YOLO ned-skalerer dit billede til denne størrelse internt. "
+    help="YOLO ned-skalerer input-billedet til denne størrelse internt. "
          "Større = mere detalje på små frø, men langsommere."
 )
 
 show_centers = st.sidebar.checkbox("Vis center-markører", value=True)
 show_bboxes = st.sidebar.checkbox("Vis bounding boxes", value=True)
 show_confidence = st.sidebar.checkbox("Vis confidence-tal", value=False)
+
+# Center-merge: post-processing der erstatter IoU-baseret NMS med en
+# afstands-baseret regel. Effektivt mod touching frø hvor bbox'er
+# overlapper meget, men centre er langt fra hinanden
+st.sidebar.markdown("---")
+use_center_merge = st.sidebar.checkbox(
+    "Brug center-distance NMS (post-processing)",
+    value=False,
+    help="Erstatter standard IoU-NMS med en regel baseret på center-afstand. "
+         "Når slået til kører inference med iou=0.95 (lader duplikater slippe "
+         "igennem) og merger derefter detections hvis deres centre er tæt på "
+         "hinanden. Bedre til touching frø — én parameter (afstand) i stedet "
+         "for to skidte valg (lav vs høj IoU).",
+)
+min_center_distance_px = st.sidebar.slider(
+    "Min center-afstand (px)",
+    min_value=5, max_value=80, value=20, step=1,
+    help="To detections merges hvis deres centre er tættere end dette. "
+         "Typisk ~halvdelen af en frø-diameter. Kun aktiv når center-merge "
+         "er slået til.",
+    disabled=not use_center_merge,
+)
+
+# Ekstra: histogram-fordeling før filtrering — kører en anden inference med
+# conf=0.01 så vi kan se ALLE kandidater, ikke kun dem over slideren
+show_unfiltered_hist = st.sidebar.checkbox(
+    "Vis ufiltreret confidence-fordeling",
+    value=False,
+    help="Kører en ekstra inference med conf=0.01 og viser histogrammet over "
+         "ALLE detections (ikke kun dem over threshold). Fordobler "
+         "inference-tiden når slået til. Nuværende threshold markeres "
+         "som rød stiplet linje.",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +246,7 @@ uploaded = st.file_uploader(
 )
 
 if uploaded is None:
-    st.info("👆 Upload et billede for at se predictions. "
+    st.info("Upload et billede for at se predictions. "
             "Modellen er trænet på composite-billeder med 50-80 majs på blå "
             "plade-baggrund.")
     st.stop()
@@ -123,11 +270,15 @@ with col_left:
 # Kør prediction
 # ---------------------------------------------------------------------------
 with st.spinner("Detekterer frø…"):
+    # Hvis center-merge er slået til, vil vi have ALLE dubletter med —
+    # derfor høj IoU. Slideren ignoreres i denne mode.
+    effective_iou = 0.95 if use_center_merge else iou_threshold
+
     start = time.time()
     results = model.predict(
         source=np.array(image_pil),
         conf=confidence_threshold,
-        iou=iou_threshold,
+        iou=effective_iou,
         imgsz=imgsz,
         device="mps",
         verbose=False,
@@ -140,6 +291,14 @@ boxes = result.boxes  # ultralytics Boxes-objekt
 # Hver detection: (x1, y1, x2, y2, conf, cls)
 xyxy = boxes.xyxy.cpu().numpy() if boxes is not None else np.zeros((0, 4))
 confs = boxes.conf.cpu().numpy() if boxes is not None else np.zeros(0)
+
+# Post-processing: center-distance NMS hvis slået til
+n_merged = 0
+n_before_merge = len(xyxy)
+if use_center_merge and n_before_merge > 0:
+    xyxy, confs, n_merged = merge_close_centers(
+        xyxy, confs, min_center_distance_px
+    )
 
 n_detections = len(xyxy)
 
@@ -177,7 +336,13 @@ for (x1, y1, x2, y2), conf in zip(xyxy, confs):
 with col_right:
     st.subheader("Prediction")
     st.image(overlay, use_container_width=True)
-    st.caption(f"{n_detections} frø detekteret  ·  {elapsed_ms:.0f} ms")
+    caption = f"{n_detections} frø detekteret  ·  {elapsed_ms:.0f} ms"
+    if use_center_merge:
+        caption += (
+            f"  ·  {n_merged} dubletter fjernet via center-merge "
+            f"(før: {n_before_merge}, afstand ≥ {min_center_distance_px} px)"
+        )
+    st.caption(caption)
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +364,69 @@ else:
 
 # Confidence-fordeling som histogram (kun hvis mindst 1 detection)
 if n_detections > 0:
+    import altair as alt
+
     st.subheader("Confidence-fordeling")
-    import pandas as pd
-    df = pd.DataFrame({"confidence": confs})
-    st.bar_chart(df["confidence"].value_counts(bins=10).sort_index())
+
+    # Vælg datakilde: enten de filtrerede detections eller en ny inference
+    # med lav threshold for at se den fulde fordeling
+    if show_unfiltered_hist:
+        with st.spinner("Kører ufiltreret inference…"):
+            results_full = model.predict(
+                source=np.array(image_pil),
+                conf=0.01,
+                iou=iou_threshold,
+                imgsz=imgsz,
+                device="mps",
+                verbose=False,
+            )
+        boxes_full = results_full[0].boxes
+        confs_for_hist = (
+            boxes_full.conf.cpu().numpy()
+            if boxes_full is not None else np.zeros(0)
+        )
+        st.caption(
+            f"Viser {len(confs_for_hist)} detections med conf ≥ 0.01 "
+            f"(rød stiplet linje = threshold {confidence_threshold:.2f})"
+        )
+    else:
+        confs_for_hist = confs
+        st.caption(
+            f"Viser {n_detections} detections over threshold "
+            f"({confidence_threshold:.2f})"
+        )
+
+    # Lav histogrammet med altair så x-aksen får ordentlige numeriske labels
+    n_bins = 20 if show_unfiltered_hist else 10
+    df_hist = pd.DataFrame({"Confidence": confs_for_hist})
+    hist_chart = (
+        alt.Chart(df_hist)
+        .mark_bar(color="#3b82f6")
+        .encode(
+            x=alt.X(
+                "Confidence:Q",
+                bin=alt.Bin(maxbins=n_bins),
+                title="Confidence",
+                axis=alt.Axis(format=".2f"),
+            ),
+            y=alt.Y("count():Q", title="Antal detections"),
+            tooltip=[
+                alt.Tooltip("Confidence:Q", bin=alt.Bin(maxbins=n_bins), format=".2f"),
+                alt.Tooltip("count():Q", title="Antal"),
+            ],
+        )
+    )
+
+    # Tilføj rød stiplet linje ved den valgte threshold når vi viser ufiltreret
+    if show_unfiltered_hist:
+        threshold_rule = (
+            alt.Chart(pd.DataFrame({"x": [confidence_threshold]}))
+            .mark_rule(color="red", strokeDash=[6, 4], size=2)
+            .encode(x="x:Q")
+        )
+        hist_chart = hist_chart + threshold_rule
+
+    st.altair_chart(hist_chart, use_container_width=True)
 
     st.subheader("Bbox-størrelser")
     widths = xyxy[:, 2] - xyxy[:, 0]
@@ -217,7 +441,7 @@ if n_detections > 0:
 buf = io.BytesIO()
 overlay.save(buf, format="PNG")
 st.download_button(
-    label="📥 Download prediction-overlay",
+    label="Download prediction-overlay",
     data=buf.getvalue(),
     file_name=f"prediction_{uploaded.name.rsplit('.', 1)[0]}.png",
     mime="image/png",
@@ -225,13 +449,56 @@ st.download_button(
 
 
 # ---------------------------------------------------------------------------
-# Tips
+# Footer: model-detaljer (altid synlig)
 # ---------------------------------------------------------------------------
-with st.expander("💡 Tips til at fortolke resultaterne"):
-    st.markdown("""
-- **Få detections (<10):** modellen ser ikke frøene. Prøv at sænke confidence-tærsklen i sidebar.
-- **For mange detections:** højere confidence-tærskel filtrerer svage forslag væk.
-- **Detections på baggrund:** modellen er ikke trænet på den belysning eller plade. Composite-pipelinen brugte kun blå plade — andre baggrunde kan forvirre.
-- **Mistede frø midt i grupper:** dette er det Videometer specifikt sagde var svært — touching/overlap. Det er hovedudfordringen modellen blev trænet på.
-- **Konsistens på tværs af confidence-niveauer:** prøv at justere slider'en og se ved hvilket niveau du har "ægte" detections vs noise.
-""")
+st.divider()
+
+meta = load_model_metadata(active_version, model)
+
+st.markdown(
+    f"### Model: `{meta['version']}` · "
+    f"{meta.get('arch', 'YOLO')} · "
+    f"Trænet på `{meta.get('dataset_name', '?')}`"
+)
+
+# To kolonner: performance og arkitektur side om side
+col_perf, col_arch = st.columns(2)
+
+with col_perf:
+    st.markdown("**Performance**")
+    perf_data = [
+        ("mAP50",     f"{meta.get('mAP50', 0):.4f}"),
+        ("mAP50-95",  f"{meta.get('mAP50_95', 0):.4f}"),
+        ("Precision", f"{meta.get('precision', 0):.4f}"),
+        ("Recall",    f"{meta.get('recall', 0):.4f}"),
+    ]
+    perf_df = pd.DataFrame(perf_data, columns=["Metric", "Value"]).set_index("Metric")
+    st.table(perf_df)
+
+with col_arch:
+    st.markdown("**Arkitektur**")
+    params_m = meta.get("parameters", 0) / 1e6
+    grads_m = meta.get("gradients", 0) / 1e6
+    arch_data = [
+        ("Layers",          f"{meta.get('layers', '?')}"),
+        ("Parameters",      f"{params_m:.2f} M"),
+        ("Gradients",       f"{grads_m:.2f} M"),
+        ("Model-størrelse", f"{meta.get('file_size_mb', 0):.1f} MB"),
+    ]
+    arch_df = pd.DataFrame(arch_data, columns=["Attribut", "Value"]).set_index("Attribut")
+    st.table(arch_df)
+
+# Training-config og dataset-info som tekst-linjer
+st.markdown("**Training-config**")
+config_parts = [
+    f"{meta.get('epochs', '?')} epochs",
+    f"imgsz {meta.get('imgsz', '?')}",
+    f"batch {meta.get('batch', '?')}",
+    f"patience {meta.get('patience', '?')}",
+    f"device {meta.get('device', '?')}",
+]
+st.text(" · ".join(str(p) for p in config_parts))
+st.text(
+    f"Dataset: {meta.get('dataset_name', '?')} "
+    f"({meta.get('train_count', '?')} train / {meta.get('val_count', '?')} val)"
+)
