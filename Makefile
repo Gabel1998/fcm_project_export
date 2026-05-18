@@ -18,6 +18,8 @@ NAME    ?= v4_composite
 EPOCHS  ?= 80
 IMGSZ   ?= 1280
 BATCH   ?= 4
+# Pretrained weights — skift med fx: make train MODEL=yolov10n.pt NAME=v6_yolov10
+MODEL   ?= yolo11n.pt
 
 COMPOSITE_DIR := scripts/02_yolo_pipeline/composite_generator
 DATA_DIR      := data/$(DATASET)
@@ -42,7 +44,8 @@ help:
 	@echo "  make preview [DATASET=v1]           Åbn preview.png for et dataset"
 	@echo ""
 	@echo "  Træn:"
-	@echo "  make train [DATASET=v1] [NAME=v4]   Træn YOLO på dataset"
+	@echo "  make train [DATASET=v1] [NAME=v4] [MODEL=yolo11n.pt]"
+	@echo "                                      Træn YOLO på dataset"
 	@echo "  make resume NAME=v4                 Genoptag afbrudt træning fra last.pt"
 	@echo "  make auto-resume NAME=v4 [MAX_ATTEMPTS=20]"
 	@echo "                                      Auto-restart hvis MPS-bug crasher (loop)"
@@ -135,9 +138,9 @@ preview:
 
 train:
 	@test -f $(DATA_DIR)/data.yaml || (echo "❌ Mangler $(DATA_DIR)/data.yaml — kør 'make gen DATASET=$(DATASET)' først"; exit 1)
-	@echo "Træner YOLOv11n på $(DATA_DIR) som $(NAME) (~1-3 timer)"
-	$(PYTHON) scripts/02_yolo_pipeline/03b_train_composite.py \
-		--dataset $(DATASET) --name $(NAME) \
+	@echo "Træner $(MODEL) på $(DATA_DIR) som $(NAME) (~1-3 timer)"
+	PYTORCH_ENABLE_MPS_FALLBACK=1 $(PYTHON) scripts/02_yolo_pipeline/03b_train_composite.py \
+		--dataset $(DATASET) --name $(NAME) --pretrained $(MODEL) \
 		--epochs $(EPOCHS) --imgsz $(IMGSZ) --batch $(BATCH)
 
 # Genoptag afbrudt træning fra last.pt
@@ -149,7 +152,7 @@ resume:
 		|| (echo "❌ Ingen last.pt for $(NAME). Forventet på runs/detect/runs/train/$(NAME)/weights/last.pt eller $(RUN_DIR)/weights/last.pt"; exit 1)
 	@LAST_PT=$$(find runs/detect/runs/train/$(NAME)/weights/last.pt runs/train/$(NAME)/weights/last.pt 2>/dev/null | head -1); \
 	echo "Genoptager $(NAME) fra $$LAST_PT"; \
-	$(PYTHON) -c "from ultralytics import YOLO; YOLO('$$LAST_PT').train(resume=True)"
+	PYTORCH_ENABLE_MPS_FALLBACK=1 $(PYTHON) -c "from ultralytics import YOLO; YOLO('$$LAST_PT').train(resume=True)"
 
 # Auto-resume — kør resume i loop indtil træning afslutter eller MAX_ATTEMPTS opbrugt
 # Brug: make auto-resume NAME=v5_no_leak [MAX_ATTEMPTS=30]
