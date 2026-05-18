@@ -7,8 +7,9 @@ data/videometer_processed/
 # YOLO-genererede filer
 runs/
 *.pt
-# Tillad pre-trained YOLOv11n
-!yolo11n.pt
+# Tillad pre-trained YOLOv11n KUN i repo-roden (ikke auto-downloadede kopier
+# under scripts/, der opstår når ultralytics henter weights ved første brug)
+!/yolo11n.pt
 # Tillad versionerede trænede modeller under models/
 !models/**/best.pt
 
