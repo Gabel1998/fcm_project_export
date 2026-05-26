@@ -108,6 +108,14 @@ Hele modellen er pakket ind i en Streamlit-app der lader brugeren uploade et bil
 
 **Metodisk refleksion.** Den vigtigste læring fra projektet er ikke selve modellens arkitektur, men opdagelsen af data leakage mellem v4 og v5. Det demonstrerer hvor let det er at producere imponerende tal på en utæt evaluering, og hvor vigtigt det er at splitte ikke kun *eksemplerne* men også *de underliggende kilder* (her: baggrunds-billederne) når et syntetisk datasæt bygges fra et lille sæt råmaterialer.
 
+I forlængelse af denne refleksion er der gjort en bevidst indsats for at gøre modellens egenskaber **gennemsigtige** i demoen. Både den fulde træningskonfiguration og en confidence-fordeling pr. inference er eksponeret direkte, så modellen kan vurderes på andet end et enkelt mAP-tal.
+
+![Demoens model-metadata-blok](docs/screenshots/streamlit_metadata.png)
+*Figur 10: Model-metadata vist direkte i demoen. Hele træningskonfigurationen — arkitektur, parametre, dataset-split, epochs, batch, patience — er tilgængelig sammen med performance-tallene, så ingen del af resultatet er skjult.*
+
+![Confidence-fordeling fra demoen](docs/screenshots/streamlit_stats.png)
+*Figur 11: Confidence-fordelingen for predictions på et testbillede (composite_00002.png). Histogrammet anvendes til hurtigt at vurdere om modellen er stabilt sikker (peak omkring 0.8-0.9), eller om mange detektioner ligger nær threshold og bør gennemses manuelt.*
+
 ---
 
 *Repo: <github-link kommer her>. Demo: `streamlit run scripts/03_demo/upload_demo.py`. Reproducer rapport-billeder: `python scripts/05_generate_report_assets.py`.*
