@@ -61,3 +61,6 @@ test_images/*.png
 !test_images/composite_00000.png
 !test_images/composite_00001.png
 !test_images/composite_00002.png
+
+# Intermediær HTML-fil til PDF-eksport (regenereres af scripts/06_markdown_to_html.py)
+REPORT.html
