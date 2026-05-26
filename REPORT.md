@@ -79,3 +79,19 @@ Som interpretability-værktøj er der i Streamlit-demoen indbygget en visualiser
 
 ![Predictions på testbillede](docs/screenshots/demo_predictions.png)
 *Figur 5: Predictions fra v5_no_leak på composite_00000.png. Hver bounding box svarer til et detekteret frø.*
+
+## 6. Refleksion og fremtidsudsigter
+
+**Real-world validering** er det vigtigste næste skridt. Resultaterne ovenfor er imponerende på syntetisk data, men gabet mellem syntetisk og rigtigt er kendt fra litteraturen. Et besøg hos Videometer er aftalt med henblik på at køre v5_no_leak på en lille mængde ægte plade-optagelser og rapportere mAP samt fejl i mm via den kalibrerede mm/pixel-faktor.
+
+**Mulige forbedringer** identificeret under arbejdet:
+
+- **Mere realistisk lyssætning** i composite-generatoren — den nuværende blå plade har konstant belysning, mens rigtige Videometer-optagelser har subtile lys-gradienter.
+- **Multi-class detection** — modellen detekterer kun "frø". Hvis flere kornsorter skal skelnes, skal pipelinen udvides med klasse-balancerede syntetiske eksempler.
+- **Domain adaptation** — selv en mindre fine-tuning på ægte data forventes at forbedre generaliseringen betydeligt.
+
+**Metodisk refleksion.** Den vigtigste læring fra projektet er ikke selve modellens arkitektur, men opdagelsen af data leakage mellem v4 og v5. Det demonstrerer hvor let det er at producere imponerende tal på en utæt evaluering, og hvor vigtigt det er at splitte ikke kun *eksemplerne* men også *de underliggende kilder* (her: baggrunds-billederne) når et syntetisk datasæt bygges fra et lille sæt råmaterialer.
+
+---
+
+*Repo: <github-link kommer her>. Demo: `streamlit run scripts/03_demo/upload_demo.py`. Reproducer rapport-billeder: `python scripts/05_generate_report_assets.py`.*
