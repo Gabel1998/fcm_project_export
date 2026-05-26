@@ -52,6 +52,13 @@ dataset/
 data/composite_*/images/
 data/composite_*/labels/
 
+# Andre store datasæt-mapper (kan regenereres fra generator-koden)
+data/clean_v1/
+data/composite_v1_no_leak_1280/
+
+# Tarballs af store datasæt (deles via eksternt link, ikke git)
+*.tar.gz
+
 # Resultater - kan genereres på ny
 *.cache
 
