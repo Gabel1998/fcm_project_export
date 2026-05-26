@@ -20,6 +20,8 @@ IMGSZ   ?= 1280
 BATCH   ?= 4
 # Pretrained weights — skift med fx: make train MODEL=yolov10n.pt NAME=v6_yolov10
 MODEL   ?= yolo11n.pt
+# Device — skift til cpu hvis MPS crasher (langsommere men pålideligt natten over)
+DEVICE  ?= mps
 
 COMPOSITE_DIR := scripts/02_yolo_pipeline/composite_generator
 DATA_DIR      := data/$(DATASET)
@@ -44,8 +46,8 @@ help:
 	@echo "  make preview [DATASET=v1]           Åbn preview.png for et dataset"
 	@echo ""
 	@echo "  Træn:"
-	@echo "  make train [DATASET=v1] [NAME=v4] [MODEL=yolo11n.pt]"
-	@echo "                                      Træn YOLO på dataset"
+	@echo "  make train [DATASET=v1] [NAME=v4] [MODEL=yolo11n.pt] [DEVICE=mps]"
+	@echo "                                      Træn YOLO på dataset (DEVICE=cpu for natten over)"
 	@echo "  make resume NAME=v4                 Genoptag afbrudt træning fra last.pt"
 	@echo "  make auto-resume NAME=v4 [MAX_ATTEMPTS=20]"
 	@echo "                                      Auto-restart hvis MPS-bug crasher (loop)"
@@ -138,9 +140,9 @@ preview:
 
 train:
 	@test -f $(DATA_DIR)/data.yaml || (echo "❌ Mangler $(DATA_DIR)/data.yaml — kør 'make gen DATASET=$(DATASET)' først"; exit 1)
-	@echo "Træner $(MODEL) på $(DATA_DIR) som $(NAME) (~1-3 timer)"
+	@echo "Træner $(MODEL) på $(DATA_DIR) som $(NAME) på $(DEVICE)"
 	PYTORCH_ENABLE_MPS_FALLBACK=1 $(PYTHON) scripts/02_yolo_pipeline/03b_train_composite.py \
-		--dataset $(DATASET) --name $(NAME) --pretrained $(MODEL) \
+		--dataset $(DATASET) --name $(NAME) --pretrained $(MODEL) --device $(DEVICE) \
 		--epochs $(EPOCHS) --imgsz $(IMGSZ) --batch $(BATCH)
 
 # Genoptag afbrudt træning fra last.pt
