@@ -38,7 +38,11 @@ CSS = """
   th, td { border: 1px solid #bbb; padding: 6px 10px; text-align: left; font-size: 10pt; }
   th { background: #f3f3f3; }
   img { max-width: 100%; height: auto; display: block; margin: .8em auto; border: 1px solid #ddd; }
-  em { color: #555; font-size: 10pt; display: block; text-align: center; margin-top: -.4em; margin-bottom: 1em; }
+  em { font-style: italic; }
+  /* Figur-billedtekster: kun em der er eneste indhold i en p (matcher
+     markdown-mønstret "*Figur N: tekst*" som står på egen linje).
+     Inline-italic som *ord* i brødtekst rammes ikke. */
+  p > em:only-child { color: #555; font-size: 10pt; display: block; text-align: center; margin-top: -.4em; margin-bottom: 1em; }
   code { background: #f5f5f5; padding: 1px 5px; border-radius: 3px; font-size: 10pt; }
   hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
   strong { color: #111; }
