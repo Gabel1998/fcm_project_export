@@ -1,6 +1,7 @@
 # FCM Landmark Detection
 
-**Eksamensaflevering — EK - Erhvervsakademiet København, Machine Learning F26, maj 2026**
+**Eksamensaflevering — EK - Erhvervsakademiet København**<br>
+**Machine Learning F26, maj 2026**<br>
 **Forfatter:** Andreas Søgård Gabel
 
 ---
