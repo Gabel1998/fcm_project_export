@@ -43,10 +43,11 @@ CSS = """
   hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
   strong { color: #111; }
   @media print {
-    body { margin: 1.5cm; }
+    body { margin: 1.5cm; max-width: none; }
     h2 { page-break-after: avoid; }
-    img { page-break-inside: avoid; }
     table { page-break-inside: avoid; }
+    /* Bevidst INGEN page-break-inside: avoid på img — lader Chrome
+       brække frit i stedet for at efterlade store tomme felter. */
   }
 </style>
 """
