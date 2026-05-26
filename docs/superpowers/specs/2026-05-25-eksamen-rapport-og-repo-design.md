@@ -163,4 +163,4 @@ Scriptet skal være idempotent og kunne køres med én kommando: `python scripts
 
 - **Markdown → PDF-eksport kan have layoutproblemer.** Plan B: print til PDF fra browser med GitHub-rendering.
 - **Asset-script kan tage længere end forventet.** Plan B: skip valgfri v4-vs-v5 sammenligning.
-- **Datasæt-download via Google Drive kan kræve KEA-konto-konfiguration.** Plan B: brug WeTransfer eller link til extern hosting.
+- **Datasæt-download via Google Drive kan kræve EK - Erhvervsakademiet København-konto-konfiguration.** Plan B: brug WeTransfer eller link til extern hosting.

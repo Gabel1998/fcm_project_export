@@ -8,7 +8,7 @@
 
 **Hvad:** Detect frø/kornkerner på plader fra Videometer's spektrale imaging-system, og finde center-koordinater for hvert frø (landmark detection).
 
-**Hvorfor:** Eksamensprojekt på KEA Machine Learning Elective, forår 2026. Samtidig en reel industri-case fra Videometer A/S (dansk virksomhed der laver spektral imaging til frø/korn-analyse).
+**Hvorfor:** Eksamensprojekt på EK - Erhvervsakademiet København Machine Learning Elective, forår 2026. Samtidig en reel industri-case fra Videometer A/S (dansk virksomhed der laver spektral imaging til frø/korn-analyse).
 
 **Underviser:** Jone Eikholm (jone@ek.dk)
 **Industri-partner:** Videometer A/S (videometer.dk)
@@ -117,7 +117,7 @@ Forward propagation, backpropagation, gradient, learning rate, momentum, ReLU, s
 
 ### HIPS-toolbox issue
 - Videometer's Python-toolbox kræver Windows
-- **Workaround:** Bed Videometer eksportere som PNG/TIFF, eller konverter på Windows-maskine på KEA
+- **Workaround:** Bed Videometer eksportere som PNG/TIFF, eller konverter på Windows-maskine på EK - Erhvervsakademiet København
 - **Excel-filen kan læses direkte uden toolbox** — så al ground truth er tilgængelig på Mac
 
 ---

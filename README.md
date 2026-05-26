@@ -1,6 +1,6 @@
 # FCM Landmark Detection
 
-Eksamensprojekt (KEA, Maskinlæring, maj 2026). En YOLOv11n-baseret model er trænet på syntetisk genererede composite-billeder til detektion af frø-positioner på Videometers blå plade.
+Eksamensprojekt (EK - Erhvervsakademiet København, Machine Learning F26, maj 2026). En YOLOv11n-baseret model er trænet på syntetisk genererede composite-billeder til detektion af frø-positioner på Videometers blå plade.
 
 **Rapport:** [REPORT.md](REPORT.md) (eller [REPORT.pdf](REPORT.pdf))
 

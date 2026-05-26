@@ -1,13 +1,13 @@
 # FCM Landmark Detection
 
-**Eksamensaflevering — KEA, Maskinlæring, maj 2026**
+**Eksamensaflevering — EK - Erhvervsakademiet København, Machine Learning F26, maj 2026**
 **Forfatter:** Andreas Søgård Gabel
 
 ---
 
 ## 1. Problemstilling
 
-I samarbejde med Videometer A/S er der undersøgt om frø-positioner på en standardiseret optagelsesplade kan detekteres automatisk via maskinlæring. Den nuværende arbejdsgang kræver manuel annotering af hvert enkelt frøs centermasse, hvilket både er tidskrævende og skalerer dårligt ved større datamængder.
+I samarbejde med Videometer A/S er der undersøgt om frø-positioner på en deres egen produceret optagelsesplade kan detekteres automatisk via maskinlæring. Den nuværende arbejdsgang består, af at .
 
 Målet med projektet har været at træne en model der kan udpege frø-positioner i et billede med tilstrækkelig præcision til at erstatte den manuelle annotering, eller som minimum fungere som pre-annotering der reducerer det manuelle arbejde markant.
 
