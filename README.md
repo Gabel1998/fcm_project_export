@@ -1,64 +1,89 @@
 # FCM Landmark Detection
 
-Eksamensprojekt: Detektion af frø-/kornkerne-positioner på Videometer-plader vha. YOLOv11n.
+Eksamensprojekt (KEA, Maskinlæring, maj 2026). En YOLOv11n-baseret model er trænet på syntetisk genererede composite-billeder til detektion af frø-positioner på Videometers blå plade.
 
-## Quick start
+**Rapport:** [REPORT.md](REPORT.md) (eller [REPORT.pdf](REPORT.pdf))
+
+---
+
+## Resultater (kort)
+
+| Model | mAP@50 | mAP@50-95 | Note |
+|---|---|---|---|
+| v5_no_leak | **0.999** | **0.969** | Endelig model — trænet 80 epochs, leakage-fri splits |
+
+Detaljer og fortælling findes i [REPORT.md](REPORT.md).
+
+---
+
+## Setup — lokalt (Mac M-chip)
+
+Python 3.11 anbefales (Ultralytics og PyTorch halter på 3.13).
 
 ```bash
-make help            # se alle kommandoer
-make status          # hvad findes / hvad kører
-make gen             # generér 2000-composite dataset (~30 min)
-make train           # træn YOLOv11n på det (~1-7 timer afhængig af imgsz)
-make watch           # live-monitorering i andet terminal-vindue
-make save-model      # arkivér trænet model under models/<NAME>/
+# 1. Klon repoet
+git clone <repo-url>
+cd fcm_project_export
+
+# 2. Opret virtuelt miljø
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# 3. Installer dependencies
+pip install -r requirements.txt
+
+# 4. Verificér at MPS (Apple Silicon GPU) virker
+python -c "import torch; print('MPS:', torch.backends.mps.is_available())"
 ```
 
-## Dokumentation
+Forventet output: `MPS: True`. Hvis False, virker modellen stadig — bare langsommere på CPU.
 
-| Fil | Hvad det dækker |
-|---|---|
-| `PROJECT_SPEC.md` | Fuld projekt-kontekst og beslutninger — læs først |
-| `OFFLINE_GUIDE.md` | Selvkørende workflow uden internet (genere + træne + monitorere) |
-| `PARAMETERS_GUIDE.md` | Alle parametre i pipelinen — hvad du kan tweake og hvad effekten er |
-| `docs/specs/2026-05-11-composite-pipeline-design.md` | Composite-pipeline design |
-| `docs/plans/2026-05-11-composite-pipeline.md` | Step-by-step implementeringsplan |
-| `models/README.md` | Model-versionering og hvordan switch_model.sh virker |
-| `setup_guide.md` | Lokal setup på Mac M-chip |
-| `CLAUDE.md` | Instruktioner til Claude Code (hvis du bruger det) |
+## Setup — Google Colab
+
+En notebook ligger i `scripts/04_colab/v6_yolov10/train.ipynb` og kan åbnes direkte i Colab. Den henter dependencies og kører træning på Colabs T4-GPU.
+
+## Kør demo'en
+
+Streamlit-demoen lader brugeren uploade et billede og se modellens predictions + objectness heatmap:
+
+```bash
+.venv/bin/streamlit run scripts/03_demo/upload_demo.py
+```
+
+Brug et af de 3 testbilleder under `test_images/` til at prøve det.
+
+## Reproducer rapport-billeder
+
+```bash
+.venv/bin/python scripts/05_generate_report_assets.py
+```
+
+Genererer alle billeder i `docs/screenshots/` brugt i REPORT.md.
+
+## Reproducer datasæt
+
+Det fulde syntetiske datasæt (2.5 GB, 7.000 billeder) er ikke versioneret i repoet. To muligheder:
+
+1. **Download:** [Google Drive-link kommer her] — `composite_v1_no_leak_1280.tar.gz`
+2. **Regenerér fra kode:** se `scripts/02_yolo_pipeline/composite_generator/` og `make gen`.
 
 ## Mappestruktur
 
 ```
-.
-├── PROJECT_SPEC.md         # FULD projekt-specifikation - læs først!
-├── CLAUDE.md               # instruktioner til Claude Code
-├── README.md               # denne fil
-├── setup_guide.md          # lokal setup på Mac M-chip
-│
+fcm_project_export/
+├── REPORT.md / REPORT.pdf      # Eksamensrapport
+├── models/v5_no_leak/best.pt   # Endelig trænet model
+├── test_images/                # 3 composite-testbilleder
 ├── scripts/
-│   ├── 01_initial_fcn_attempt/   # arkiveret - FCN-tilgang vi droppede
-│   └── 02_yolo_pipeline/         # ★ den aktive pipeline
-│
-├── visualizations/         # genererede billeder fra forrige kørsler
-│
-├── docs/
-│   └── exam_qa.md         # forventede eksamensspørgsmål + svar
-│
-└── notes/
-    └── timeline.md         # projekt-tidslinje og beslutninger
+│   ├── 02_yolo_pipeline/       # Composite generator + træning
+│   ├── 03_demo/                # Streamlit-demo med heatmap
+│   ├── 04_colab/               # Colab-notebooks
+│   └── 05_generate_report_assets.py
+└── docs/
+    ├── screenshots/            # Rapport-billeder
+    └── superpowers/            # Specs og planer (interne)
 ```
 
-## Status
+## Licens
 
-- ✅ Ellipse-pipeline (v0) — arkiveret under `scripts/02a_archived_ellipse_synthetic/`
-- ✅ v1/v2/v3 modeller trænet på syntetiske ellipser (P=0.99, R=0.99, mAP@50=0.99)
-- ✅ Composite-pipeline bygget — kombinerer 12.384 rigtige Videometer-frø-PNG'er + 2 plade-baggrunde til realistiske scener
-- 🟡 v4_composite model under træning (eller venter på fuld dataset)
-- ⏳ A/B-test YOLOv11n vs YOLO26n (efter v4)
-- ⏳ Demo opdateret med rigtig data (besøg hos Videometer)
-
-## Eksamen
-- **Dato:** Uge 24 (11.–16. juni 2026)
-- **Format:** 10 min præsentation + 10–15 min Q&A
-- **Underviser:** Jon Eikholm (jone@ek.dk)
-- **Industri-partner:** Videometer A/S
+Projektet er udviklet til eksamen og er ikke licenseret til kommerciel brug.
