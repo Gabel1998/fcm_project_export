@@ -21,3 +21,19 @@ I stedet er der bygget en **syntetisk data-pipeline** der procedurelt sammensæt
 
 ![Eksempel på syntetisk composite-billede](docs/screenshots/synthetic_example.png)
 *Figur 1: Et af de 7.000 syntetiske composite-billeder brugt til træning. Frø er placeret tilfældigt på en blå plade-baggrund uden overlap.*
+
+## 3. Tidlige tilgange og opdaget data leakage
+
+Modellen er blevet trænet i flere iterationer hvor metodikken er strammet op undervejs:
+
+| Version | Datasæt-tilgang | Bemærkning |
+|---|---|---|
+| v1_kalibreret | Kun rene frø-udsnit, ingen baggrund | Baseline — orienteringsstudie |
+| v2_robust | Composite med tilfældig augmentation | Test af robusthed |
+| v3_augmented | Composite med stærkere augmentation | Validerede augmenterings-strategien |
+| v4_composite | Større composite-datasæt, fælles baggrunde train/val | Mistænkeligt høje metrikker |
+| **v5_no_leak** | **Composite med adskilte baggrunde train/val** | **Endelig model** |
+
+Ved gennemgang af v4-resultaterne er der opdaget en metodisk fejl: **de baggrundsbilleder der blev brugt til at konstruere composite-eksemplerne, var fælles mellem træningssæt og valideringssæt**. Hver baggrund optrådte under flere frø-konstellationer, men hvis den samme baggrund optrådte både i train og val, kunne modellen lære features ved baggrunden selv frem for ved frøene. Det er klassisk data leakage og forklarer hvorfor v4-metrikker var urealistisk gode.
+
+Læringen har formet hele den endelige pipeline: **enhver baggrund må kun optræde i ét split**. Den re-arkitekterede composite-generator splitter først baggrunds-poolen i train/val/test, og bygger derefter composite-billeder inden for hvert split. Det er denne disciplin der gør v5's tal troværdige.
