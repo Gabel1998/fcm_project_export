@@ -203,7 +203,9 @@ def generate_v4_vs_v5_comparison(device: str) -> None:
     """Side-by-side sammenligning af v4_composite og v5_no_leak på samme billede.
 
     Viser visuelt hvordan data leakage påvirkede v4's predictions sammenlignet
-    med den leakage-frie v5-træning.
+    med den leakage-frie v5-træning. Layoutet er HORISONTALT (v4 til venstre,
+    v5 til højre) så aspect ratio passer på en A4-side uden at fylde hele
+    højden.
     """
     if not V4_MODEL_PATH.exists():
         print(f"  ADVARSEL: {V4_MODEL_PATH} findes ikke — v4-sammenligning skippes")
@@ -222,25 +224,25 @@ def generate_v4_vs_v5_comparison(device: str) -> None:
 
     # Banner over hvert billede med label + antal detektioner
     banner_h = 40
-    font = _get_font(24)
-    canvas_w = new_size[0]
-    canvas_h = (new_size[1] + banner_h) * 2
+    font = _get_font(22)
+    img_w, img_h = new_size
+    canvas_w = img_w * 2
+    canvas_h = img_h + banner_h
 
     canvas = Image.new("RGB", (canvas_w, canvas_h), color=(245, 245, 245))
     draw = ImageDraw.Draw(canvas)
 
-    # Øverst: v4
-    draw.rectangle([0, 0, canvas_w, banner_h], fill=(40, 40, 40))
+    # Venstre: v4
+    draw.rectangle([0, 0, img_w, banner_h], fill=(40, 40, 40))
     draw.text((12, 8), f"v4_composite  (data leakage)  —  {v4_dets} detektioner",
               fill=(255, 220, 100), font=font)
     canvas.paste(v4_img, (0, banner_h))
 
-    # Nederst: v5
-    y_offset = banner_h + new_size[1]
-    draw.rectangle([0, y_offset, canvas_w, y_offset + banner_h], fill=(40, 40, 40))
-    draw.text((12, y_offset + 8), f"v5_no_leak  (leakage-fri splits)  —  {v5_dets} detektioner",
+    # Højre: v5
+    draw.rectangle([img_w, 0, canvas_w, banner_h], fill=(40, 40, 40))
+    draw.text((img_w + 12, 8), f"v5_no_leak  (leakage-fri splits)  —  {v5_dets} detektioner",
               fill=(120, 230, 120), font=font)
-    canvas.paste(v5_img, (0, y_offset + banner_h))
+    canvas.paste(v5_img, (img_w, banner_h))
 
     canvas.save(OUT_DIR / "v4_vs_v5_comparison.png", optimize=True)
     print(f"  genereret: v4_vs_v5_comparison.png (v4={v4_dets}, v5={v5_dets} detektioner)")

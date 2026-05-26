@@ -50,8 +50,14 @@ CSS = """
     body { margin: 1.5cm; max-width: none; }
     h2 { page-break-after: avoid; }
     table { page-break-inside: avoid; }
-    /* Bevidst INGEN page-break-inside: avoid på img — lader Chrome
-       brække frit i stedet for at efterlade store tomme felter. */
+    /* Begræns max-højde i print-mode (cm fordi vh ikke virker konsistent
+       i print). Letter-side har ~25cm content-område med 1.5cm marginer,
+       så 14cm sikrer plads til både figur, billedtekst og lidt tekst. */
+    img { max-height: 14cm; width: auto; object-fit: contain; }
+    /* Hold figur + billedtekst sammen så vi ikke får en "vagant" caption
+       på næste side end figuren. */
+    p:has(> img) { page-break-after: avoid; }
+    p:has(> img) + p { page-break-before: avoid; }
   }
 </style>
 """
