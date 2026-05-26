@@ -56,4 +56,8 @@ data/composite_*/labels/
 *.cache
 
 # Test-billeder til upload-demo (kan regenereres)
+# Undtagelse: 3 composite-testbilleder skal være i repoet til reproducerbar demo
 test_images/*.png
+!test_images/composite_00000.png
+!test_images/composite_00001.png
+!test_images/composite_00002.png
