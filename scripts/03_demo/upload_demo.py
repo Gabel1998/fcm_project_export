@@ -142,6 +142,73 @@ def load_model_metadata(version_name: str, _model) -> dict:
     return meta
 
 
+def compute_objectness_heatmaps(_model, image_array: np.ndarray, imgsz: int, device: str):
+    """Hook YOLO's detection-head og fang klassifikations-sandsynligheder pr. scale.
+
+    YOLO11 outputter 3 detection-skalaer (P3, P4, P5) med hver sin grid-opløsning.
+    For 1-klasse-modeller (kun "seed") er sigmoid af klassifikations-logit'en =
+    pixel-baseret confidence for at der er et frø i den grid-celle. Det er
+    modellens egen "heatmap" før NMS og bbox-decoding.
+
+    Returnerer liste af 3 [H, W] numpy-arrays i [0, 1] sorteret fra fineste
+    (P3) til groveste (P5) opløsning.
+    """
+    import torch
+
+    # Dict så seneste capture pr. scale overskriver tidligere. Ultralytics
+    # kører en warmup-pass med dummy-tensor før den rigtige inference, så
+    # hooks fanger BÅDE warmup (output ≈ 0) og det reelle output. Vi vil
+    # have det sidste (rigtige) for hver scale.
+    captured: dict[int, np.ndarray] = {}
+
+    def make_hook(scale_idx: int):
+        def hook(module, inp, out):
+            prob = torch.sigmoid(out).detach().cpu().numpy()[0, 0]
+            captured[scale_idx] = prob
+        return hook
+
+    detect = _model.model.model[-1]
+    hooks = []
+    for i, cv3_branch in enumerate(detect.cv3):
+        last_conv = cv3_branch[-1]
+        hooks.append(last_conv.register_forward_hook(make_hook(i)))
+
+    try:
+        _model.predict(
+            image_array, imgsz=imgsz, device=device, conf=0.01, verbose=False
+        )
+    finally:
+        for h in hooks:
+            h.remove()
+
+    return [captured[i] for i in sorted(captured.keys())]
+
+
+def make_heatmap_overlay(base_img: Image.Image, heatmap: np.ndarray, alpha: float = 0.5) -> Image.Image:
+    """Læg 2D heatmap som farve-overlay på et PIL-billede.
+
+    Heatmappet upsamples til billed-størrelse (bilinear) og farves med
+    matplotlib's 'jet'-colormap (blå = lav, rød = høj). Alpha styrer
+    blanding: 0.0 = kun base, 1.0 = kun heatmap.
+    """
+    from matplotlib import colormaps
+
+    target_w, target_h = base_img.size
+
+    # Upsample heatmap til samme størrelse som input-billedet
+    hm_pil = Image.fromarray((np.clip(heatmap, 0, 1) * 255).astype(np.uint8), mode="L")
+    hm_resized = hm_pil.resize((target_w, target_h), resample=Image.BILINEAR)
+    hm_norm = np.array(hm_resized).astype(np.float32) / 255.0
+
+    # Apply jet colormap → [H, W, 4] RGBA, drop alpha
+    cmap = colormaps["jet"]
+    colored = (cmap(hm_norm)[:, :, :3] * 255).astype(np.uint8)
+
+    base_array = np.array(base_img.convert("RGB")).astype(np.float32)
+    blended = (1 - alpha) * base_array + alpha * colored.astype(np.float32)
+    return Image.fromarray(blended.clip(0, 255).astype(np.uint8))
+
+
 def merge_close_centers(xyxy: np.ndarray, confs: np.ndarray, min_dist_px: float):
     """Center-distance NMS: behold detections hvis center er langt nok fra alle
     allerede accepterede. Højeste confidence vinder ved konflikt.
@@ -221,6 +288,17 @@ min_center_distance_px = st.sidebar.slider(
          "Typisk ~halvdelen af en frø-diameter. Kun aktiv når center-merge "
          "er slået til.",
     disabled=not use_center_merge,
+)
+
+# Objectness heatmap: hook detection head'en og visualiser klassifikations-
+# sandsynligheder pr. grid-celle som farve-overlay — modellens egen "heatmap"
+show_heatmap = st.sidebar.checkbox(
+    "Vis objectness heatmap",
+    value=False,
+    help="Henter klassifikations-scores fra YOLO's 3 detection-heads og "
+         "visualiserer hvor modellen ser frø som pixel-confidence. Rød = "
+         "høj confidence, blå = lav. Tilføjer én ekstra inference-pass når "
+         "slået til.",
 )
 
 # Ekstra: histogram-fordeling før filtrering — kører en anden inference med
@@ -343,6 +421,51 @@ with col_right:
             f"(før: {n_before_merge}, afstand ≥ {min_center_distance_px} px)"
         )
     st.caption(caption)
+
+
+# ---------------------------------------------------------------------------
+# Objectness heatmap (modellens interne pixel-confidence)
+# ---------------------------------------------------------------------------
+if show_heatmap:
+    st.divider()
+    st.subheader("Objectness heatmap")
+    st.caption(
+        "Modellens klassifikations-sandsynlighed pr. grid-celle, før NMS og "
+        "bbox-decoding. Rød = høj confidence, blå = lav."
+    )
+
+    with st.spinner("Beregner heatmap..."):
+        heatmaps = compute_objectness_heatmaps(
+            model, np.array(image_pil), imgsz=imgsz, device="mps"
+        )
+
+    # Kombineret view: upsample alle 3 til P3-størrelsen, så pixel-wise max
+    target_h, target_w = heatmaps[0].shape
+    combined = heatmaps[0].copy()
+    for hm in heatmaps[1:]:
+        hm_resized = np.array(
+            Image.fromarray((np.clip(hm, 0, 1) * 255).astype(np.uint8), mode="L")
+            .resize((target_w, target_h), resample=Image.BILINEAR)
+        ).astype(np.float32) / 255.0
+        combined = np.maximum(combined, hm_resized)
+
+    combined_overlay = make_heatmap_overlay(image_pil, combined, alpha=0.5)
+    st.image(
+        combined_overlay,
+        use_container_width=True,
+        caption=f"Kombineret (max af P3+P4+P5) · grid {target_w}×{target_h}",
+    )
+
+    with st.expander("Pr. detection-scale (P3 fineste → P5 groveste)"):
+        cols = st.columns(3)
+        for col, hm, scale_label in zip(cols, heatmaps, ["P3", "P4", "P5"]):
+            scale_overlay = make_heatmap_overlay(image_pil, hm, alpha=0.5)
+            with col:
+                st.image(
+                    scale_overlay,
+                    use_container_width=True,
+                    caption=f"{scale_label}: {hm.shape[1]}×{hm.shape[0]} grid",
+                )
 
 
 # ---------------------------------------------------------------------------
