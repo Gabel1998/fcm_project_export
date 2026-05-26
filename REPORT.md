@@ -7,11 +7,13 @@
 
 ## 1. Problemstilling
 
-I samarbejde med Videometer A/S er der undersøgt om frø-positioner på en deres egen produceret optagelsesplade kan detekteres automatisk via maskinlæring. Den nuværende arbejdsgang består, af at .
+Videometer A/S anvender allerede et **eget machine-learning-system** der tager spektrale billeder af deres egen-producerede optagelsesplade, segmenterer hvert frø som en "blob" og beregner derefter center-of-mass geometrisk ud fra blob-masken. Den nuværende arbejdsgang består altså af en flerstegs-pipeline: imaging → segmentering → blob-analyse → koordinater. Resultatet leveres som en Excel-fil med felter som `Blob ID`, `X Center mass`, `Y Center mass` og `Source Image ID`.
 
-Målet med projektet har været at træne en model der kan udpege frø-positioner i et billede med tilstrækkelig præcision til at erstatte den manuelle annotering, eller som minimum fungere som pre-annotering der reducerer det manuelle arbejde markant.
+Spørgsmålet bag dette projekt — formuleret af Videometer i deres FCM-dokument (FCM = "Frø Center of Mass") — er om en moderne **object-detection-model** kan finde frø-centre direkte i ét enkelt skridt uden at gå vejen om en separat segmentering. Hvis det er muligt, vil pipelinen blive både simplere og potentielt mere robust over for nye optagelsessituationer.
 
-Som detektions-arkitektur er der valgt **YOLOv11n** fra Ultralytics-rammeværket. Valget skyldes en kombination af modellens lette form (~5 MB trænede vægte), gode anchor-fri performance på små objekter og kompatibilitet med Apple Silicon (MPS), som har været det primære udviklingsmiljø.
+Det oprindelige forslag fra Videometer var en **Fully Convolutional Network (FCN)** der outputter et **heatmap** med frø-centre som peaks, og som evalueres mod ground truth-heatmaps via PSNR. Efter rådgivning fra underviser Jone Eikholm er der i stedet valgt en **YOLOv11n**-baseret tilgang, hvor frø-centre fås som center-of-bbox fra detektionerne. Heatmap-konceptet er bevaret som **interpretability-værktøj** i Streamlit-demoen (se sektion 5) frem for som modellens output.
+
+Valget af YOLOv11n skyldes modellens lette form (~5 MB trænede vægte), gode anchor-fri performance på små objekter og kompatibilitet med Apple Silicon (MPS), som har været det primære udviklingsmiljø.
 
 ## 2. Datagrundlag — hvorfor syntetisk data
 
