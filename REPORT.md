@@ -37,3 +37,45 @@ Modellen er blevet trænet i flere iterationer hvor metodikken er strammet op un
 Ved gennemgang af v4-resultaterne er der opdaget en metodisk fejl: **de baggrundsbilleder der blev brugt til at konstruere composite-eksemplerne, var fælles mellem træningssæt og valideringssæt**. Hver baggrund optrådte under flere frø-konstellationer, men hvis den samme baggrund optrådte både i train og val, kunne modellen lære features ved baggrunden selv frem for ved frøene. Det er klassisk data leakage og forklarer hvorfor v4-metrikker var urealistisk gode.
 
 Læringen har formet hele den endelige pipeline: **enhver baggrund må kun optræde i ét split**. Den re-arkitekterede composite-generator splitter først baggrunds-poolen i train/val/test, og bygger derefter composite-billeder inden for hvert split. Det er denne disciplin der gør v5's tal troværdige.
+
+## 4. Composite-pipelinen og v5_no_leak
+
+Den endelige pipeline består af **seks moduler** der hver har ét ansvar:
+
+1. **Baggrunds-loader** — indlæser plade-baggrunde og splitter dem i train/val/test (baggrundene blandes aldrig på tværs af splits).
+2. **Frø-katalog** — holder en pulje af enkeltfrø-udsnit med metadata om størrelse og center-masse.
+3. **Layout-generator** — placerer N frø tilfældigt på en baggrund uden overlap.
+4. **Composite-renderer** — sammensætter baggrund + frø til ét billede og holder styr på pixel-koordinater.
+5. **Label-skriver** — skriver YOLO-formatterede labels (klasse + normaliserede bbox-koordinater) per billede.
+6. **Manifest-bygger** — gemmer `data.yaml` og generation-metadata så datasættet er fuldt sporbart.
+
+Træningen af v5_no_leak er gennemført på en Mac M-chip vha. PyTorch's MPS-backend over **80 epochs** med YOLOv11n som startpunkt. Træningskonfiguration: input-størrelse 1280×1280, batch 8, learning rate auto-tuned.
+
+![Træningskurver for v5_no_leak](docs/screenshots/training_curves.png)
+*Figur 2: Train- og val-loss + metrikker over 80 epochs. mAP@50 konvergerer hurtigt, mens mAP@50-95 fortsætter med at stige langsomt.*
+
+## 5. Resultater
+
+På valideringssættet — som ingen baggrunde deler med træningssættet — har v5_no_leak opnået følgende slutmetrikker:
+
+| Metric | Værdi |
+|---|---|
+| Precision | 0.999 |
+| Recall | 1.000 |
+| mAP@50 | **0.999** |
+| mAP@50-95 | **0.969** |
+
+Tallene er konsistente med kvaliteten af de syntetiske data og indikerer at modellen har lært at lokalisere frø meget pålideligt på composite-billeder. Det skal understreges at evalueringen stadig foregår på syntetisk data — den endelige validering på rigtige Videometer-billeder er planlagt men ligger uden for denne aflevering.
+
+![PR-kurve](docs/screenshots/pr_curve.png)
+*Figur 3: Precision-Recall-kurven viser at modellen holder >0.99 precision over hele recall-spektret.*
+
+### Objectness heatmap som interpretability
+
+Som interpretability-værktøj er der i Streamlit-demoen indbygget en visualisering af modellens **interne objectness-confidence** før NMS og bbox-decoding. Heatmap'et opsamles ved at hooke ind på YOLO-modellens Detect-lag og summere klassesandsynligheder per grid-celle på tværs af de tre featuremap-skalaer (P3, P4, P5).
+
+![Objectness heatmap-overlay](docs/screenshots/objectness_heatmap.png)
+*Figur 4: Objectness heatmap (blå=lav, rød=høj) lagt oven på et testbillede. Modellens interne confidence "tænder" netop der hvor de detekterede bounding boxes ligger — visuelt bekræft af at modellen ikke "snyder" via baggrundens features.*
+
+![Predictions på testbillede](docs/screenshots/demo_predictions.png)
+*Figur 5: Predictions fra v5_no_leak på composite_00000.png. Hver bounding box svarer til et detekteret frø.*
