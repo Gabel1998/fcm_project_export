@@ -38,6 +38,9 @@ Ved gennemgang af v4-resultaterne er der opdaget en metodisk fejl: **de baggrund
 
 Læringen har formet hele den endelige pipeline: **enhver baggrund må kun optræde i ét split**. Den re-arkitekterede composite-generator splitter først baggrunds-poolen i train/val/test, og bygger derefter composite-billeder inden for hvert split. Det er denne disciplin der gør v5's tal troværdige.
 
+![Sammenligning v4 vs v5 på samme testbillede](docs/screenshots/v4_vs_v5_comparison.png)
+*Figur 2: Side-by-side sammenligning af v4_composite og v5_no_leak på samme testbillede. v4 (øverst) viser markant lavere og mere spredte confidence-scores (0.40-0.92), mens v5 (nederst) har stabile høje scores (0.91-0.96). Forskellen illustrerer hvordan data leakage skævvred v4's interne sikkerhed.*
+
 ## 4. Composite-pipelinen og v5_no_leak
 
 Den endelige pipeline består af **seks moduler** der hver har ét ansvar:
@@ -49,10 +52,13 @@ Den endelige pipeline består af **seks moduler** der hver har ét ansvar:
 5. **Label-skriver** — skriver YOLO-formatterede labels (klasse + normaliserede bbox-koordinater) per billede.
 6. **Manifest-bygger** — gemmer `data.yaml` og generation-metadata så datasættet er fuldt sporbart.
 
-Træningen af v5_no_leak er gennemført på en Mac M-chip vha. PyTorch's MPS-backend over **80 epochs** med YOLOv11n som startpunkt. Træningskonfiguration: input-størrelse 1280×1280, batch 8, learning rate auto-tuned.
+Træningen af v5_no_leak er gennemført på en Mac M-chip vha. PyTorch's MPS-backend over **80 epochs** med YOLOv11n som startpunkt. Træningskonfiguration: input-størrelse 1280×1280, batch 4, patience 15, learning rate auto-tuned. Datasættet er splittet i **1600 train / 400 val** med leakage-frie baggrunde mellem splits.
 
 ![Træningskurver for v5_no_leak](docs/screenshots/training_curves.png)
-*Figur 2: Train- og val-loss + metrikker over 80 epochs. mAP@50 konvergerer hurtigt, mens mAP@50-95 fortsætter med at stige langsomt.*
+*Figur 3: Train- og val-loss + metrikker over 80 epochs. mAP@50 konvergerer hurtigt, mens mAP@50-95 fortsætter med at stige langsomt.*
+
+![Train batch med augmentation](docs/screenshots/train_batch_augmented.jpg)
+*Figur 4: Et træningsbatch som det reelt blev set af modellen — Ultralytics' indbyggede augmentation (mosaic, scaling, color jitter) er anvendt løbende for at gøre modellen robust over for varierende sammensætninger af frø.*
 
 ## 5. Resultater
 
@@ -68,17 +74,27 @@ På valideringssættet — som ingen baggrunde deler med træningssættet — ha
 Tallene er konsistente med kvaliteten af de syntetiske data og indikerer at modellen har lært at lokalisere frø meget pålideligt på composite-billeder. Det skal understreges at evalueringen stadig foregår på syntetisk data — den endelige validering på rigtige Videometer-billeder er planlagt men ligger uden for denne aflevering.
 
 ![PR-kurve](docs/screenshots/pr_curve.png)
-*Figur 3: Precision-Recall-kurven viser at modellen holder >0.99 precision over hele recall-spektret.*
+*Figur 5: Precision-Recall-kurven viser at modellen holder >0.99 precision over hele recall-spektret.*
 
 ### Objectness heatmap som interpretability
 
 Som interpretability-værktøj er der i Streamlit-demoen indbygget en visualisering af modellens **interne objectness-confidence** før NMS og bbox-decoding. Heatmap'et opsamles ved at hooke ind på YOLO-modellens Detect-lag og summere klassesandsynligheder per grid-celle på tværs af de tre featuremap-skalaer (P3, P4, P5).
 
 ![Objectness heatmap-overlay](docs/screenshots/objectness_heatmap.png)
-*Figur 4: Objectness heatmap (blå=lav, rød=høj) lagt oven på et testbillede. Modellens interne confidence "tænder" netop der hvor de detekterede bounding boxes ligger — visuelt bekræft af at modellen ikke "snyder" via baggrundens features.*
+*Figur 6: Objectness heatmap (blå=lav, rød=høj) lagt oven på et testbillede. Modellens interne confidence "tænder" netop der hvor de detekterede bounding boxes ligger — visuelt bekræft af at modellen ikke "snyder" via baggrundens features.*
+
+![Heatmap pr. featuremap-skala](docs/screenshots/heatmaps_per_scale.png)
+*Figur 7: Heatmap'et split op pr. featuremap-skala (P3, P4, P5). YOLOv11n laver detektioner på tre opløsninger samtidig. P4 (midterst, 80×54 grid) bærer det meste af signalet for frø af denne størrelse, mens P3 og P5 fanger henholdsvis mindre detaljer og bredere kontekst.*
 
 ![Predictions på testbillede](docs/screenshots/demo_predictions.png)
-*Figur 5: Predictions fra v5_no_leak på composite_00000.png. Hver bounding box svarer til et detekteret frø.*
+*Figur 8: Predictions fra v5_no_leak på composite_00000.png. Hver bounding box svarer til et detekteret frø.*
+
+### Streamlit-demo
+
+Hele modellen er pakket ind i en Streamlit-app der lader brugeren uploade et billede og inspicere både predictions, metadata og confidence-fordeling interaktivt. Demoen er det primære værktøj til at vise modellen frem under den mundtlige eksamen.
+
+![Streamlit-demo med upload og predictions](docs/screenshots/streamlit_demo.png)
+*Figur 9: Streamlit-demo'en. Sidebar tillader justering af confidence-tærskel, IoU-tærskel og input-størrelse. Hovedvinduet viser original + prediction side-by-side; nedenunder følger metadata-blok og confidence-statistik (ikke vist her).*
 
 ## 6. Refleksion og fremtidsudsigter
 
