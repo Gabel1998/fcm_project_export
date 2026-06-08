@@ -22,6 +22,11 @@ from PIL import Image, ImageDraw, ImageFont
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 ACTIVE_MODEL = PROJECT_ROOT / "models" / "active" / "best.pt"
 
+# Gør sibling-modulerne importérbare (Streamlit kører scriptet direkte)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import seed_morphology  # noqa: E402  — segmentering + center-of-mass + orientering
+import overlays  # noqa: E402  — lag-baseret overlay-render
+
 
 # ---------------------------------------------------------------------------
 # Sidens setup
@@ -264,9 +269,28 @@ imgsz = st.sidebar.select_slider(
          "Større = mere detalje på små frø, men langsommere."
 )
 
-show_centers = st.sidebar.checkbox("Vis center-markører", value=True)
-show_bboxes = st.sidebar.checkbox("Vis bounding boxes", value=True)
-show_confidence = st.sidebar.checkbox("Vis confidence-tal", value=False)
+st.sidebar.markdown("**Lag** (stables oven på hinanden)")
+show_bboxes = st.sidebar.checkbox("Bounding boxes", value=True)
+show_centers = st.sidebar.checkbox("Center-markør (bbox-midte)", value=True)
+show_masks = st.sidebar.checkbox(
+    "Instans-masker",
+    value=False,
+    help="Segmenterer frø-pixels og farver hvert frø — viser instans-splittingen "
+         "af rørende frø (det Videometers blob-analyse laver).",
+)
+show_com = st.sidebar.checkbox(
+    "Center-of-mass (+)",
+    value=False,
+    help="Frøets faktiske tyngdepunkt (segmenteret), ikke bbox-midten. Det er "
+         "den størrelse Videometer rapporterer som X/Y Center mass.",
+)
+show_orientation = st.sidebar.checkbox(
+    "Orienterings-pil",
+    value=False,
+    help="Frøets hovedakse via 2.-ordens momenter. Meningsfuld for aflange frø; "
+         "udefineret for runde.",
+)
+show_confidence = st.sidebar.checkbox("Confidence-tal", value=False)
 
 # Center-merge: post-processing der erstatter IoU-baseret NMS med en
 # afstands-baseret regel. Effektivt mod touching frø hvor bbox'er
@@ -382,33 +406,33 @@ n_detections = len(xyxy)
 
 
 # ---------------------------------------------------------------------------
-# Tegn prediction-overlay
+# Tegn prediction-overlay som en stak af valgte lag
 # ---------------------------------------------------------------------------
-overlay = image_pil.copy()
-drawer = ImageDraw.Draw(overlay)
-
-# Skalér linje-tykkelse til billed-størrelsen så det ser ens ud
-line_width = max(2, int(min(img_w, img_h) / 500))
-marker_radius = max(4, int(min(img_w, img_h) / 200))
-
-for (x1, y1, x2, y2), conf in zip(xyxy, confs):
-    cx = (x1 + x2) / 2
-    cy = (y1 + y2) / 2
-
-    if show_bboxes:
-        drawer.rectangle([(x1, y1), (x2, y2)], outline="red", width=line_width)
-
-    if show_centers:
-        drawer.ellipse(
-            [(cx - marker_radius, cy - marker_radius),
-             (cx + marker_radius, cy + marker_radius)],
-            fill="lime", outline="red", width=max(1, line_width // 2),
+# Segmenteringen (center-of-mass, orientering, masker) er kun nødvendig hvis
+# mindst ét af de lag der bruger den er tændt — så beregner vi den kun da.
+need_segmentation = show_masks or show_com or show_orientation
+seg_labels = None
+seg_measurements = None
+if need_segmentation and n_detections > 0:
+    with st.spinner("Segmenterer frø (center-of-mass + orientering)…"):
+        seg_labels, seg_measurements = seed_morphology.analyze(
+            np.array(image_pil), xyxy
         )
 
-    if show_confidence:
-        text_offset = marker_radius + 4
-        drawer.text((cx + text_offset, cy - text_offset),
-                     f"{conf:.2f}", fill="yellow")
+# Stabl de valgte lag oven på billedet (masker nederst, stregtegning øverst)
+overlay = Image.fromarray(
+    overlays.render_overlay(
+        np.array(image_pil), xyxy, confs,
+        show_masks=show_masks,
+        show_boxes=show_bboxes,
+        show_bbox_center=show_centers,
+        show_com=show_com,
+        show_orientation=show_orientation,
+        show_confidence=show_confidence,
+        labels=seg_labels,
+        measurements=seg_measurements,
+    )
+)
 
 
 with col_right:
