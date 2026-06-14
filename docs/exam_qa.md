@@ -227,3 +227,24 @@ Billede
 
 ### "Hvordan bruger DU transfer learning?"
 *`model = YOLO('yolo11n.pt')` loader COCO-pre-trænede vægte (millioner billeder, 80 klasser), og `model.train(...)` fine-tuner på mine frø-composites. Så jeg starter med generelle billed-features i stedet for fra bunden — derfor klarer jeg mig med relativt få data. Samme princip som GPT/BERT i NLP.*
+
+### "Hvad er GPT / en transformer?"
+*GPT = Generative Pre-trained Transformer: en decoder-only, autoregressiv model der forudsiger næste token. Den bygger på self-attention, hvor hvert ord vægter alle andre ord for at danne kontekst — det erstattede RNN/LSTM fordi det kører parallelt og fanger lange afhængigheder. Pre-trænes self-supervised (gæt næste ord) og fine-tunes bagefter — samme transfer-learning-idé som min YOLO, bare på tekst. CNN = billeder (convolution), Transformer = sekvenser (attention).*
+
+### "Hvad er self-attention?"
+*Hver token beregner hvor meget den skal "fokusere på" hver anden token (query/key/value) og bygger sin repræsentation som en vægtet sum af de andre. Det giver kontekst — fx at "det" refererer til "dyret" i en sætning.*
+
+### "Hvad er RAG?"
+*Retrieval-Augmented Generation. Dokumenter gemmes som embeddings (vektorer) i en vektor-database; et spørgsmål embeddes og de mest semantisk lignende bidder hentes via nærmeste-nabo-søgning og lægges ind i LLM'ens prompt som kontekst. LLM'en svarer forankret i rigtige kilder → opdateret viden, mindre hallucination, bruger private data — uden at gentræne modellen.*
+
+### "Hvordan hænger RAG sammen med resten?"
+*En embedding er en lært vektor-repræsentation (som autoencoderens flaskehals). Semantisk søgning = nærmeste-nabo i vektor-rum — samme afstands-princip som k-means og som min pixel-til-nærmeste-center i efterbehandlingen.*
+
+### "Forklar data preparation i dit projekt"
+*Trinene: indsamling (syntetisk generator med rigtige frø-stamps på blå plade), labeling (automatisk → perfekte labels), split (train/val UDEN leakage), formatering (YOLO-labels), normalisering (letterbox til 1280) og augmentation (flip, rotation, mosaic, mixup, copy-paste).*
+
+### "Hvad er data leakage, og hvordan undgik du det?" (dit stærkeste data-prep-kort)
+*Leakage = når information fra val/test siver ind i træningen. I v4 delte train og val de SAMME frø-stamps, så modellen kunne memorere dem → mAP@50-95 var kun 0.63 og evalueringen misvisende. I v5 gjorde jeg frø-puljerne disjunkte, så val var ægte uset → modellen tvinges til at generalisere → 0.97. Et rent split gav både ærlige metrics OG en bedre model.*
+
+### "Fordele ved syntetisk data?"
+*Perfekte labels uden manuel annotering, fuld kontrol over variation, og NDA-sikkert (ingen rigtige data uploades). Jeg validerede pipelinen på syntetisk data hvor jeg kendte facit, før de rigtige Videometer-data kom.*
