@@ -196,3 +196,34 @@ Billede
 
 ### "Hvor stor er modellen?"
 *best.pt er 5.3 MB. YOLOv11n har 2.59 millioner parametre — langt mindre end fx YOLOv8x med 68 millioner. Trade-off: hastighed vs. kapacitet.*
+
+---
+
+## Bredt pensum (Jons liste — uden for projektet)
+
+### "Hvad er et beslutningstræ (decision tree)?"
+*Et flowchart af ja/nej-spørgsmål på features. Ved hver knude vælges det split der reducerer urenhed mest — Gini/entropi ved klassifikation, varians/MSE ved regression. Bladet giver svaret (flertal-klasse eller gennemsnit). Let at fortolke, men ét dybt træ overfitter og er ustabilt → man bruger ensembler.*
+
+### "Random Forest vs XGBoost?"
+*Random Forest = bagging: mange uafhængige træer på tilfældige data-/feature-udsnit, stemmer midles → reducerer varians. XGBoost = boosting: træer i kæde, hvor hvert nyt træ retter forgængernes fejl via gradienten → reducerer bias. Bagging er parallelt, boosting er sekventielt.*
+
+### "Hvad er XGBoost?"
+*eXtreme Gradient Boosting — regulariseret gradient boosting. Mange svage træer bygges sekventielt, hvert trænet på de fejl (residualer) ensemblet stadig laver. "Extreme" = L1/L2-regularisering, 2.-ordens optimering, shrinkage og column subsampling. State-of-the-art på tabulær data — slår ofte deep learning der.*
+
+### "Hvorfor brugte du ikke XGBoost / decision trees?"
+*Mit input er billeder, ikke tabulære features. XGBoost er konge på tabeldata (som Videometers Excel-ark med X/Y center mass osv.), men til at lokalisere objekter i et billede bruger man en CNN. Forskellige værktøjer til forskellige data-typer.*
+
+### "Supervised vs unsupervised learning?"
+*Supervised = lær med facit/labels (min YOLO med ground-truth-bokse). Unsupervised = find struktur uden labels. Uden labels måles kvalitet anderledes (silhouette score, reconstruction error).*
+
+### "Nævn unsupervised metoder"
+*Clustering (k-means — vælg K, tildel til nærmeste centroid, gentag; DBSCAN — tæthedsbaseret, håndterer støj). Dimensionsreduktion (PCA — lineær, max varians; autoencoder — neural komprimering). Anomali-detektion (find outliers).*
+
+### "Hænger unsupervised sammen med dit projekt?"
+*Min opgave er supervised, men min efterbehandling `assign_pixels_to_seeds` tildeler hver pixel til nærmeste detektions-center — det er reelt ét skridt af k-means/clustering (marker-styret). Clustering kunne også gruppere frø efter morfologi, og en sten i et billede er en anomali.*
+
+### "Hvad er transfer learning / model transfer?"
+*At genbruge en model pre-trænet på et stort datasæt og fine-tune den til sin egen opgave. De tidlige lag har lært generelle features (kanter, teksturer) der passer på enhver billed-opgave; man tilpasser kun de høje lag. Feature extraction = frys backbonen, træn kun head; fine-tuning = træn alt videre med lille learning rate. Gevinst: mindre data, hurtigere, bedre på små datasæt.*
+
+### "Hvordan bruger DU transfer learning?"
+*`model = YOLO('yolo11n.pt')` loader COCO-pre-trænede vægte (millioner billeder, 80 klasser), og `model.train(...)` fine-tuner på mine frø-composites. Så jeg starter med generelle billed-features i stedet for fra bunden — derfor klarer jeg mig med relativt få data. Samme princip som GPT/BERT i NLP.*
