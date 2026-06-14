@@ -24,13 +24,64 @@
 *YOLO bruger en sammensat loss af tre komponenter: CIoU loss for bbox-regression (hvor nøjagtigt rammer vi objektet?), BCE loss for klassifikation (er det et frø?), og DFL (Distribution Focal Loss) for fine-grained bbox-positioning. Jeg har ikke selv skrevet loss — jeg bruger Ultralytics' standard.*
 
 ### "Hvad er early stopping?"
-*Træningen stopper automatisk hvis validation loss ikke forbedres i N epochs (jeg brugte patience=10). Det forhindrer overfitting og sparer tid. Min model stoppede ved epoch 29 og fik gemt best.pt fra det punkt.*
+*Træningen stopper automatisk hvis fitness ikke forbedres i N epochs (jeg brugte patience=15). Hos mig blev den aldrig udløst — modellen fandt et nyt peak inden for 15 epochs hele vejen, så alle 80 epochs kørte. best.pt er gemt fra epoch 77 (højeste fitness). Mekanismen forhindrer overfitting hvis modellen holder op med at forbedre sig.*
 
 ### "Hvorfor confidence threshold 0.25?"
 *YOLO returnerer alle predictions med en confidence-score (0-1). Lav threshold = flere detektioner men flere falske. Høj threshold = færre falske men risiko for at misse rigtige. 0.25 er Ultralytics' default og giver god balance.*
 
 ### "Hvorfor evaluerer du både YOLO-metrics og landmark-metrics?"
 *YOLO's metrics (mAP, IoU) er for bounding boxes — hvor god er overlappet. Min opgave er landmark detection — hvor præcist finder jeg centre. Jeg laver en separat evaluering der specifikt måler center-præcision i pixels og mm.*
+
+---
+
+## Detektions-kæden i YOLOv11 — fra billede til frø (terp denne)
+
+**Hele flowet i ét diagram:**
+```
+Billede
+ └─ CNN-backbone (convolution + pooling) udtrækker features
+     └─ 3 grids:  P3 160×160 (8px celler) · P4 80×80 (16px) · P5 40×40 (32px)
+         └─ hver celle = ét fast anchor-punkt  (~33.600 i alt)
+             └─ hvert anchor forudsiger SAMTIDIG (to parallelle grene):
+                  • cv3 → klasse-score  ("er der et majs?")   ← dine heatmaps
+                  • cv2 → 4 kant-afstande via DFL  (boxen)
+                     └─ confidence-tærskel:  smid de SVAGE væk
+                        └─ NMS:  smid DUBLETTER væk
+                           └─ endelige detektioner → 69 frø
+```
+
+### "Forklar hele YOLO-pipelinen fra billede til detektion"
+*CNN-backbonen udtrækker features og laver tre grids i forskellige opløsninger (P3 fint, P5 groft). Hver grid-celle har ét fast anchor-punkt, og hvert punkt forudsiger samtidig en klasse-score (er det et majs?) og en box (fire kant-afstande via DFL) — i ét forward-pass, deraf "You Only Look Once". Bagefter fjerner confidence-tærsklen de svage detektioner, og NMS fjerner dubletter. Det der overlever er de endelige frø.*
+
+### "Hvad er et anchor-punkt, og hvor kommer det fra?"
+*Et fast gitter-punkt, ét pr. grid-celle, lagt ud på forhånd uafhængigt af billedet (~33.600 i alt). Det er udgangspunktet boksens kanter måles fra. Modellen vælger dem ikke — de er der altid; den lærer bare hvilke der skal fyre. Anchor-punktet er IKKE boksens center.*
+
+### "Hvorfor tre grids (P3/P4/P5)?"
+*Multi-scale. P3 er fint (160×160, 8px-celler) og fanger små/præcise frø; P5 er groft (40×40, 32px-celler) og fanger store. Det er FPN/PAN-necket. De tre klasse-score-grids er præcis de objectness-heatmaps jeg viser. (160 = antal celler pr. side, ikke pixels.)*
+
+### "Forklar de tre tab (box_loss, cls_loss, dfl_loss)"
+*Samlet tab = vægtet sum (7.5·box + 0.5·cls + 1.5·dfl). **cls_loss** (BCE) = "er det et majs?" — let her, kun én klasse. **box_loss** (CIoU) = sidder hele den færdige kasse rigtigt? IoU + center + form. **dfl_loss** = sidder hver af de fire kanter præcist? — arbejder på kant-fordelingerne. dfl gør kanterne skarpe, box_loss sikrer den samlede geometri. cls er helt adskilt.*
+
+### "Hvad er DFL helt konkret?"
+*I stedet for at gætte ét tal pr. box-kant fordeler modellen sandsynlighed over 16 bins (mulige afstande, reg_max=16) for hver af de 4 kanter. Den endelige afstand er fordelingens tyngdepunkt (forventningsværdien Σ i·p(i)) — derfor kan den lande mellem hele pixels (sub-pixel-præcision) og vise hvor sikker modellen er. 4 kanter × 16 bins = 64 tal fra cv2-grenen.*
+
+### "Forudsiger modellen center + bredde + højde direkte?"
+*Nej. Den forudsiger fire kant-afstande fra anchor-punktet (l/t/r/b via DFL), som afkodes til hjørner (xyxy). Center (cx,cy) regnes til sidst som midten af kassen og bruges som landmark — det forudsiges aldrig direkte.*
+
+### "Hvad er IoU?"
+*Intersection over Union — overlap divideret med forening mellem to bokse. 0 = intet overlap, 1 = perfekt. Bruges til at afgøre om en detektion er korrekt (mAP@50 = IoU≥0.5) OG til at finde dubletter i NMS. På mit val-sæt: median IoU 0.97.*
+
+### "Hvad er confidence?"
+*Modellens sikkerhed på at en box indeholder et majs (0-1). I YOLOv11 ER det klasse-scoren — der er ingen separat objectness-gren som i v3-v5. Bruges til filtrering (tærskel), til at prioritere i NMS, og til at sortere ved mAP. Siger intet om hvor præcist boksen sidder — det er IoU's job.*
+
+### "Hvad er NMS?"
+*Non-Maximum Suppression. Flere anchors laver overlappende bokse om samme frø; NMS sorterer efter confidence, beholder den højeste og fjerner alle med høj IoU til den (dubletter), gentaget til ingen er tilbage. Confidence afgør hvem der vinder, IoU hvem der er dublet. Standard-NMS kan fejle på rørende frø — derfor har jeg en center-afstands-variant i demoen.*
+
+### "Confidence-tærskel vs NMS — forskellen?"
+*Confidence-tærskel fjerner de SVAGE bokse (lav score). NMS fjerner DUBLETTER (overlappende bokse om samme frø). To forskellige skridt, i den rækkefølge.*
+
+### "One-stage vs two-stage detektor?"
+*To-stage (R-CNN) foreslår først regioner og klassificerer dem bagefter — langsomt. YOLO er one-stage: klasse + box for alle celler i ét pass. Derfor hurtig nok til realtid.*
 
 ---
 
@@ -65,7 +116,7 @@
 ## Spørgsmål om datasæt
 
 ### "Hvor mange billeder havde du?"
-*På syntetiske data: 300 billeder, 17.580 frø totalt, ~58 frø per billede. Train/val: 240/60. På rigtige Videometer-data: [vil afhænge af hvad de leverer].*
+*v5 blev trænet på composite_v1_no_leak: 2000 composite-billeder (1600 train / 400 val), bygget af en pulje på 9907 disjunkte train-frø og 2477 val-frø (ingen data leakage). ~24.000 frø-instanser i val-sættet. På rigtige Videometer-data: afhænger af hvad de leverer.*
 
 ### "Hvordan annoterede du data?"
 *Syntetiske data: jeg genererede både billeder OG ground truth samtidigt — så annotationer var perfekte. Rigtige data: følger med fra Videometer i et Excel-dokument med center-koordinater pr. frø.*
@@ -81,7 +132,7 @@
 *På syntetiske data, ja. Men det er konsistente data hvor frø-formen er ens og baggrunden er ren. På rigtige Videometer-data forventer jeg lavere tal — typisk er rigtige data sværere. Det er derfor vi tester på syntetisk først, og kun bruger det som baseline.*
 
 ### "Hvad er mAP@50-95?"
-*Gennemsnit af mAP over IoU-tærskler fra 50% til 95% i 5%-skridt. Strengere end mAP@50. Min mAP@50-95 er 0.72 — ikke perfekt, men det betyder primært at bbox-præcisionen ikke altid er pixel-perfekt. For landmark-detection er det OK fordi vi bruger center-of-bbox.*
+*Gennemsnit af mAP over IoU-tærskler fra 50% til 95% i 5%-skridt. Strengere end mAP@50. Min mAP@50-95 er 0.97 (0.9714) på val-sættet — højt, fordi boksene sidder præcist selv ved strenge IoU-tærskler (det matcher min median-IoU på 0.97). Det er dog på syntetiske composites; rigtige Videometer-scener er endnu ikke testet.*
 
 ### "Hvad er din landmark-præcision i mm?"
 *[Indsæt tal fra evaluation]. Det er muligt fordi Videometer leverer mm/pixel skaleringsfaktor i hver billed-header.*
@@ -91,10 +142,10 @@
 ## Spørgsmål om implementation
 
 ### "Hvad er dine vigtigste hyperparametre?"
-*Image size 256, batch size 16, 50 epochs (med early stopping), learning rate styres af AdamW (auto). Augmentation: flip 50%, rotation 180°.*
+*Image size 1280, batch 4, 80 epochs (patience 15), optimizer=auto (lr0=0.01, momentum=0.937). Augmentation: flip op/ned + venstre/højre (50%), rotation 180°, mosaic, mixup, copy-paste. Imgsz er stor (1280) fordi frøene er små på en stor plade.*
 
 ### "Hvor lang tid tog træningen?"
-*På Colab T4 GPU: ~2 minutter for 39 epochs (early stopping). På Mac MPS: lidt længere men stadig under 10 min.*
+*På Mac M4 Pro (MPS): ~3,6 timer for alle 80 epochs, spredt over 2 sessioner pga. auto-resume (Ultralytics' MPS-bug crashede undervejs, og scripts/auto_resume.sh genstartede fra last.pt). Colab GPU ville være ~10× hurtigere, men rigtige data må ikke uploades (NDA).*
 
 ### "Hvor stor er modellen?"
-*best.pt er 5.4 MB. YOLOv11n har 2.58 millioner parametre — langt mindre end fx YOLOv8x med 68 millioner. Trade-off: hastighed vs. kapacitet.*
+*best.pt er 5.3 MB. YOLOv11n har 2.59 millioner parametre — langt mindre end fx YOLOv8x med 68 millioner. Trade-off: hastighed vs. kapacitet.*
