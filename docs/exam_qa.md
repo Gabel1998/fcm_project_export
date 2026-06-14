@@ -85,6 +85,53 @@ Billede
 
 ---
 
+## CNN'et — convolution, pooling, stride, padding (terp denne)
+
+**Hele CNN-flowet (jf. CNN_Explained.png):**
+```
+Billede
+ → [Convolution: filter glider hen over billedet]  → Feature map
+ → [Max pooling: krymp, behold stærkeste]           → mindre feature map
+ → (gentag conv + pool nogle gange)
+ → Flatten → fully-connected → ét klasse-svar       (classification-CNN)
+   ELLER: behold de rumlige grids → detection        (YOLO)
+```
+
+### "Hvorfor CNN i stedet for et almindeligt (fully-connected) net til billeder?"
+*Et fully-connected net ville have en vægt for hver pixel × hver neuron → millioner af parametre, og det ignorerer at nabopixels hænger sammen. CNN deler vægte (ét lille filter glider over hele billedet) → få parametre, fanger lokale mønstre, og er translations-invariant — et frø genkendes uanset hvor det er.*
+
+### "Hvad er convolution / et filter?"
+*Et filter er et lille gitter af vægte (fx 3×3) der glider hen over billedet. Ved hver position: gang overlap sammen + læg sammen → ét tal i feature map'et. Filteret detekterer et mønster (kant, tekstur), og vægtene læres under træning. Mit eksempel-filter havde midterkolonnen = 0,33 (≈⅓) → en lodret streg-/gennemsnits-detektor: 3 ettaller i en kolonne giver 3×0,33 ≈ 1.*
+
+### "Hvorfor en aktiveringsfunktion mellem conv-lag?"
+*Uden en ikke-linearitet (ReLU/SiLU) ville stablede conv-lag kollapse til én enkelt lineær operation. ReLU = max(0,x) nuller negative værdier ud. YOLOv11 bruger SiLU (en blød ReLU).*
+
+### "Hvad er et feature map, og hvorfor er det mindre end billedet?"
+*Feature map'et er filterets svar — det lyser op hvor mønstret er. Det er mindre fordi filteret skal ligge helt inde i billedet, så det taber en kant-stribe: output = input − filter + 1. Et 7-bredt billede med 3×3-filter → 7−3+1 = 5. (Med mindre man bruger padding.)*
+
+### "Hvad er stride?"
+*Hvor mange pixels filteret hopper pr. skridt. Stride 1 bevarer opløsningen; stride 2 halverer den (nedskalering). I YOLO giver de akkumulerede strides 8/16/32 mine grids P3/P4/P5 — en P3-celle dækker 8px fordi backbonen har nedskaleret 8×.*
+
+### "Hvad er padding?"
+*En kant af 0'er rundt om billedet før convolution. "Valid" = ingen padding → output krymper (7→5). "Same" = pad så output = input (7→7). Padding lader filteret nå helt ud til kanten og bevarer størrelsen.*
+
+### "Output-størrelse-formlen"
+*output = ⌊(W − K + 2P) / S⌋ + 1, hvor W=input, K=filter, P=padding, S=stride. Samme formel for både convolution og pooling — kun K/P/S ændrer sig.*
+
+### "Hvad er max pooling?"
+*Tag fx 2×2-vinduer og behold kun det største tal, stride 2 → halver opløsningen. Med min lodrette streg: blokken med stregen giver max=1, så stregen overlever i halv opløsning. Modsat average pooling (gennemsnit), der ville udvande 1-tallet til 0,5. Max pooling: reducerer data, beholder de stærkeste features, giver translations-robusthed, forstørrer receptive field.*
+
+### "Convolution-krympning vs pooling-krympning?"
+*Convolution krymper kun en lille kant (filter−1, fx 7→5) fordi filteret skal være helt inde i billedet. Pooling halverer bevidst (÷2, fx 6→3). To forskellige grunde til at billedet bliver mindre.*
+
+### "Padding ved pooling vs convolution?"
+*Convolution bruger normalt zero-padding (rigtige 0'er) for at bevare størrelsen. Pooling padder normalt IKKE — den dropper det der ikke fylder et helt vindue (floor); padder den, bruger max-pooling −∞/ignorér, ikke 0.*
+
+### "Forskellen på classification-CNN og YOLO (detection)?"
+*En classification-CNN ender med Flatten → fully-connected → ét svar ("hvad er på billedet"). YOLO flattener ikke — den beholder de rumlige grids, så den kan sige både hvad OG hvor (mange bokse med position).*
+
+---
+
 ## DNN-grundspørgsmål (kommer altid)
 
 ### "Forklar forward propagation"
