@@ -244,6 +244,118 @@ def merge_close_centers(xyxy: np.ndarray, confs: np.ndarray, min_dist_px: float)
 
 
 # ---------------------------------------------------------------------------
+# IoU mod ground truth (kun for composite-billeder med kendte labels)
+# ---------------------------------------------------------------------------
+# (split-navn, images-dir, labels-dir) — vi tjekker val før train
+GT_SPLITS = [
+    ("val",
+     PROJECT_ROOT / "data" / "composite_v1_no_leak" / "images" / "val",
+     PROJECT_ROOT / "data" / "composite_v1_no_leak" / "labels" / "val"),
+    ("train",
+     PROJECT_ROOT / "data" / "composite_v1_no_leak" / "images" / "train",
+     PROJECT_ROOT / "data" / "composite_v1_no_leak" / "labels" / "train"),
+]
+
+
+def find_matching_gt(image_name: str, uploaded_rgb: np.ndarray):
+    """Find label-filen der matcher det uploadede billede.
+
+    VIGTIGT: matcher ikke kun på filnavn — filnavne kolliderer (test_images og
+    træningssættet har begge fx 'composite_00000.png', men med FORSKELLIGT
+    indhold). Vi verificerer derfor at datasæt-billedet er pixel-identisk med
+    det uploadede, før vi bruger dets labels. Ellers sammenligner man mod et
+    helt andet billedes ground truth og får vrøvl-IoU.
+    """
+    stem = Path(image_name).stem
+    for _split, img_dir, lbl_dir in GT_SPLITS:
+        label_path = lbl_dir / f"{stem}.txt"
+        image_path = img_dir / f"{stem}.png"
+        if not (label_path.exists() and image_path.exists()):
+            continue
+        dataset_rgb = np.array(Image.open(image_path).convert("RGB"))
+        if (dataset_rgb.shape == uploaded_rgb.shape
+                and np.array_equal(dataset_rgb, uploaded_rgb)):
+            return label_path
+    return None
+
+
+def load_gt_boxes(label_path: Path, image_w: int, image_h: int) -> np.ndarray:
+    """Læs YOLO-labels (class cx cy w h, normaliseret) → pixel-xyxy (N, 4)."""
+    boxes = []
+    for line in label_path.read_text().strip().splitlines():
+        parts = line.split()
+        if len(parts) != 5:
+            continue  # spring tomme/ugyldige linjer over
+        # YOLO gemmer normaliseret center + størrelse → absolutte hjørner
+        _, cx, cy, w, h = (float(v) for v in parts)
+        bx, by, bw, bh = cx * image_w, cy * image_h, w * image_w, h * image_h
+        boxes.append([bx - bw / 2, by - bh / 2, bx + bw / 2, by + bh / 2])
+    return np.array(boxes, dtype=np.float32) if boxes else np.zeros((0, 4), np.float32)
+
+
+def iou_one_vs_many(box: np.ndarray, others: np.ndarray) -> np.ndarray:
+    """IoU mellem én box (4,) og N bokse (N, 4), alt i pixel-xyxy."""
+    if len(others) == 0:
+        return np.zeros(0, np.float32)
+    # Skæringsrektanglets hjørner
+    x1 = np.maximum(box[0], others[:, 0])
+    y1 = np.maximum(box[1], others[:, 1])
+    x2 = np.minimum(box[2], others[:, 2])
+    y2 = np.minimum(box[3], others[:, 3])
+    inter = np.clip(x2 - x1, 0, None) * np.clip(y2 - y1, 0, None)   # overlap-areal
+    area_box = (box[2] - box[0]) * (box[3] - box[1])
+    area_oth = (others[:, 2] - others[:, 0]) * (others[:, 3] - others[:, 1])
+    return inter / np.clip(area_box + area_oth - inter, 1e-9, None)  # overlap / forening
+
+
+def match_by_iou(pred_xyxy: np.ndarray, gt_xyxy: np.ndarray):
+    """Greedy: hver prediction tager sit bedste ledige ground-truth.
+
+    Returnerer liste af (pred_idx, gt_idx, iou) for de matchede par.
+    """
+    used = np.zeros(len(gt_xyxy), dtype=bool)
+    matches = []
+    for i, pbox in enumerate(pred_xyxy):
+        scores = iou_one_vs_many(pbox, gt_xyxy)
+        if len(scores) == 0:
+            break
+        scores = np.where(used, -1.0, scores)   # bloker allerede-matchede GT
+        j = int(np.argmax(scores))
+        if scores[j] > 0:
+            used[j] = True
+            matches.append((i, j, float(scores[j])))
+    return matches
+
+
+def draw_gt_and_iou(canvas_rgb: np.ndarray, gt_xyxy: np.ndarray,
+                    pred_xyxy: np.ndarray, matches) -> np.ndarray:
+    """Tegn ground-truth-bokse (grøn) + IoU-tal pr. par, farvet efter værdi."""
+    import cv2
+
+    canvas = canvas_rgb.copy()
+    short_side = min(canvas.shape[:2])
+    line = max(2, int(short_side / 500))            # skalér til opløsning
+    font_scale = max(0.5, short_side / 1400)
+
+    # Ground-truth-bokse i grøn (modellens egne bokse er allerede røde i overlay'et)
+    for (x1, y1, x2, y2) in gt_xyxy:
+        cv2.rectangle(canvas, (int(x1), int(y1)), (int(x2), int(y2)),
+                      (0, 255, 0), line)
+
+    # IoU-tal ved hver matchet prediction, farvekodet efter hvor godt den sidder
+    for (pred_idx, _gt_idx, iou) in matches:
+        x1, y1, x2, y2 = pred_xyxy[pred_idx]
+        cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
+        color = ((0, 200, 0) if iou >= 0.90        # grøn = sidder stramt
+                 else (255, 200, 0) if iou >= 0.75  # gul = ok
+                 else (255, 60, 60))                # rød = løst
+        cv2.putText(canvas, f"{iou:.2f}", (cx + line, cy - line),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, color,
+                    max(1, line - 1), cv2.LINE_AA)
+    return canvas
+
+
+# ---------------------------------------------------------------------------
 # Sidebar-kontroller
 # ---------------------------------------------------------------------------
 st.sidebar.header("Detection-indstillinger")
@@ -334,6 +446,16 @@ show_unfiltered_hist = st.sidebar.checkbox(
          "ALLE detections (ikke kun dem over threshold). Fordobler "
          "inference-tiden når slået til. Nuværende threshold markeres "
          "som rød stiplet linje.",
+)
+
+# IoU mod ground truth: sammenlign modellens bokse med de sande labels
+show_iou = st.sidebar.checkbox(
+    "Vis IoU mod ground truth",
+    value=False,
+    help="Sammenligner modellens bokse med de sande YOLO-labels og tegner "
+         "ground-truth + IoU pr. frø. Virker kun for billeder fra "
+         "composite_v1_no_leak (fx composite_01600.png), hvor der findes "
+         "en .txt-label med samme navn.",
 )
 
 
@@ -490,6 +612,53 @@ if show_heatmap:
                     use_container_width=True,
                     caption=f"{scale_label}: {hm.shape[1]}×{hm.shape[0]} grid",
                 )
+
+
+# ---------------------------------------------------------------------------
+# IoU mod ground truth (kun når billedet har kendte labels)
+# ---------------------------------------------------------------------------
+if show_iou:
+    st.divider()
+    st.subheader("IoU mod ground truth")
+    gt_label_path = find_matching_gt(uploaded.name, np.array(image_pil))
+    if gt_label_path is None:
+        st.warning(
+            f"Intet matchende ground-truth fundet for `{uploaded.name}`. IoU "
+            "kræver et billede der er **pixel-identisk** med et billede i "
+            "composite_v1_no_leak (val/train) — fx `composite_01600.png` "
+            "taget direkte fra datasættet. Et billede fra `test_images/` med "
+            "samme navn som et træningsbillede tæller IKKE — det er et andet "
+            "billede."
+        )
+    elif n_detections == 0:
+        st.warning("Ingen detektioner at sammenligne mod ground truth.")
+    else:
+        gt_xyxy = load_gt_boxes(gt_label_path, img_w, img_h)
+        matches = match_by_iou(xyxy, gt_xyxy)
+        ious = np.array([m[2] for m in matches], dtype=np.float32)
+
+        iou_image = draw_gt_and_iou(np.array(overlay), gt_xyxy, xyxy, matches)
+        st.image(
+            iou_image,
+            use_container_width=True,
+            caption="Grøn = ground truth · rød = modellens box · tal = IoU pr. par "
+                    "(grøn ≥ 0.90, gul ≥ 0.75, rød < 0.75)",
+        )
+
+        if len(ious) > 0:
+            iou_a, iou_b, iou_c, iou_d = st.columns(4)
+            iou_a.metric("Median IoU", f"{np.median(ious):.3f}")
+            iou_b.metric("Matchede par", f"{len(ious)} / {len(gt_xyxy)}")
+            iou_c.metric("IoU ≥ 0.50", f"{100 * (ious >= 0.50).mean():.0f}%")
+            iou_d.metric("IoU ≥ 0.95", f"{100 * (ious >= 0.95).mean():.0f}%")
+            st.caption(
+                f"Ground truth: {len(gt_xyxy)} frø · detektioner: {n_detections} · "
+                f"mean IoU {ious.mean():.3f} · min/max "
+                f"{ious.min():.3f}/{ious.max():.3f}. Andelen falder ved højere "
+                "tærskel — netop derfor er mAP@50 ~1,0 mens mAP@50-95 = 0,97."
+            )
+        else:
+            st.warning("Ingen detektioner overlappede med ground truth.")
 
 
 # ---------------------------------------------------------------------------
